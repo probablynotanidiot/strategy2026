@@ -55,7 +55,7 @@
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste schedule → <b>manually add Raw rows</b> (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts across Auto+Tele → averages, predictor, planner. Data saves to your browser.</p>
+<p class="muted help">Fetch/paste schedule → <b>Raw Data auto-expands</b> (6 rows per match) → checkboxes for booleans, capped counts across Auto+Tele → averages, predictor, planner. Data saves to your browser.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -174,7 +174,7 @@
         <button id="clearSchedule" class="secondary">Clear</button>
         <button id="exportSchedule" class="ghost">Export CSV</button>
       </div>
-      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Expanded</b> (6 rows per match). Raw Data is <b>manual</b> now.</p>
+      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Raw Data</b> (auto-expanded, editable per team per match).</p>
     </div>
   </div>
   <div class="scroll" style="margin-top:10px">
@@ -188,7 +188,7 @@
   </div>
 </section>
 
-<!-- SCHEDULE EXPANDED -->
+<!-- SCHEDULE EXPANDED (still shown, read-only) -->
 <section class="card">
   <h2>Schedule Expanded (6 rows per match)</h2>
   <div class="scroll">
@@ -201,12 +201,11 @@
   </div>
 </section>
 
-<!-- RAW DATA -->
+<!-- RAW DATA (now auto-expanded from schedule; editable stats only) -->
 <section class="card">
-  <h2>Raw Data (Manual)</h2>
-  <p class="help">Add rows → choose <b>Comp Level</b>, then <b>Match #</b> (from schedule), then <b>Team</b> (Alliance auto-sets). Checkboxes for booleans; coral/algae counts are capped across Auto+Tele by Settings.</p>
+  <h2>Raw Data (Auto-expanded from Schedule)</h2>
+  <p class="help">Each row = one robot in one match. Edit the scouting cells (checkboxes + counts). Event/Comp/Match/Team/Alliance come from schedule.</p>
   <div class="footer">
-    <button id="addEmptyRow" class="ghost">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
   </div>
   <div class="scroll hscroll">
@@ -327,6 +326,16 @@
         </table>
       </div>
     </div>
+    <div class="card" style="min-width:360px">
+      <h3>Partners’ Other Matches</h3>
+      <p class="muted help">Matches that include our partners (not including our own matches) — great for pre-scouting.</p>
+      <div class="scroll">
+        <table id="partnerMatchesTbl">
+          <thead><tr><th>Match</th><th>Team</th><th>Alliance</th><th>With</th><th>Vs</th><th>Time</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -357,9 +366,9 @@ const state = {
     { item:"MINOR FOUL (opp +2)", auto:0, tele:2, notes:"opponent gets points" },
     { item:"MAJOR FOUL (opp +6)", auto:0, tele:6, notes:"opponent gets points" },
   ],
-  schedule: [],           // [{event,comp,set,match,time,red:[t1,t2,t3],blue:[t1,t2,t3]}]
-  scheduleExpanded: [],   // computed: [{event,comp,set,match,time,alliance,team}]
-  raw: [],                // manual rows
+  schedule: [],           // [{event,comp,set,match,time,red:[...],blue:[...]}]
+  scheduleExpanded: [],   // [{event,comp,set,match,time,alliance,team}]
+  raw: [],                // now mirrors scheduleExpanded (one row per team per match)
   pit: [],
   tba: { key: "", lastEventKey: "" }
 };
@@ -549,13 +558,15 @@ function onScheduleUpdated(){
   expandSchedule();
   renderSchedule();
   renderSchedExpanded();
+  buildRawFromSchedule(true);   // auto-build Raw Data from schedule (merge existing by key)
+  renderRaw();
   renderSchedulePicklist();
   renderPlanner();
+  recomputeEverything();
   saveAll();
 }
 
-/* ======== RAW DATA (manual; dropdowns + caps + checkboxes) ======== */
-// Data keys (internal)
+/* ======== RAW DATA (auto from schedule; one row per team/match) ======== */
 const RAW_HEADERS = [
   "Event","Comp","Match","Team","Alliance",
   "AUTO Leave",
@@ -569,7 +580,7 @@ const RAW_HEADERS = [
   "AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"
 ];
 
-// Two-row header with category bands
+// Sticky two-row header with category bands
 function renderRawHeaders(){
   const thead = document.querySelector("#rawTbl thead");
   thead.innerHTML = "";
@@ -605,24 +616,48 @@ function renderRawHeaders(){
   thead.appendChild(detail);
 }
 
-// Helpers: dropdown data from schedule
-function compOptions(){
-  return uniq(state.schedule.map(s=>s.comp)).filter(Boolean);
+// Build key to merge raw rows across schedule updates
+function rawKey(comp, match, team){ return `${comp}|${match}|${team}`; }
+function defaultRawFor(expRow){
+  const r = {};
+  RAW_HEADERS.forEach(h=>{
+    if (["AUTO Leave","END: Park","END: Shallow","END: Deep"].includes(h)) r[h]=0;
+    else r[h]="";
+  });
+  r.Event = expRow.event; r.Comp = expRow.comp; r.Match = expRow.match; r.Team = expRow.team; r.Alliance = expRow.alliance;
+  r["Fouls: Minor"]=0; r["Fouls: Major"]=0;
+  r["AUTO: L1"]=0; r["AUTO: L2"]=0; r["AUTO: L3"]=0; r["AUTO: L4"]=0;
+  r["AUTO: Alg→Proc"]=0; r["AUTO: Alg→Net"]=0;
+  r["TELE: L1"]=0; r["TELE: L2"]=0; r["TELE: L3"]=0; r["TELE: L4"]=0;
+  r["TELE: Alg→Proc"]=0; r["TELE: Alg→Net"]=0;
+  r["AUTO Pts"]=0; r["TELE Pts"]=0; r["END Pts"]=0; r["TOTAL"]=0; r["Opp Pts From Fouls"]=0;
+  return r;
 }
-function matchOptionsFor(comp){
-  return state.schedule.filter(s=>s.comp===comp).map(s=>s.match);
-}
-function teamOptionsFor(comp, match){
-  const s = state.schedule.find(x=>x.comp===comp && asInt(x.match)===asInt(match));
-  if(!s) return [];
-  return [...s.red, ...s.blue].filter(Boolean);
-}
-function allianceOf(comp, match, team){
-  const s = state.schedule.find(x=>x.comp===comp && asInt(x.match)===asInt(match));
-  if(!s) return "";
-  if (s.red.includes(asInt(team))) return "Red";
-  if (s.blue.includes(asInt(team))) return "Blue";
-  return "";
+function buildRawFromSchedule(merge=true){
+  // Map existing rows for merge
+  const map = new Map();
+  if (merge){
+    for (const r of state.raw){
+      map.set(rawKey(r.Comp, r.Match, r.Team), r);
+    }
+  }
+  const newRows = [];
+  for (const ex of state.scheduleExpanded){
+    const key = rawKey(ex.comp, ex.match, ex.team);
+    if (map.has(key)){
+      // Update schedule-derived fields
+      const existing = map.get(key);
+      existing.Event = ex.event; existing.Comp = ex.comp; existing.Match = ex.match; existing.Team = ex.team; existing.Alliance = ex.alliance;
+      computePointsForRow(existing); // ensure totals up-to-date
+      newRows.push(existing);
+    }else{
+      const r = defaultRawFor(ex);
+      computePointsForRow(r);
+      newRows.push(r);
+    }
+  }
+  state.raw = newRows;
+  saveAll();
 }
 
 // Caps & clamping across Auto+Tele for each category
@@ -685,43 +720,22 @@ function inputCheckbox(checked, on){
   const i=document.createElement("input"); i.type="checkbox"; i.checked=!!checked;
   i.onchange=e=> on(e.target.checked?1:0); return i;
 }
-function selectInput(opts, value, on){ const s=document.createElement("select"); opts.forEach(o=>{const op=document.createElement("option"); op.value=o; op.textContent=o||"—"; s.appendChild(op);}); s.value=value||""; s.onchange=e=>on(e.target.value); return s; }
 
-// Render Raw table body
+// Render Raw table body (schedule fields are read-only)
+function renderRawHeadersAndBody(){
+  renderRawHeaders();
+  renderRaw();
+}
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
-
   state.raw.forEach((row)=>{
     const cells=[];
 
-    // Event free text (pulled from schedule once match chosen; still editable)
-    cells.push(inputText(row.Event||"", v=>{row.Event=v; saveAll();}));
-
-    // Comp dropdown
-    const compOpts = compOptions();
-    cells.push(selectInput(["", ...compOpts], row.Comp||"", v=>{
-      row.Comp=v; row.Match=""; row.Team=""; row.Alliance="";
-      saveAll(); renderRaw();
-    }));
-
-    // Match dropdown (depends on Comp)
-    const matchOpts = row.Comp ? matchOptionsFor(row.Comp) : [];
-    cells.push(selectInput(["", ...matchOpts], row.Match||"", v=>{
-      row.Match=asInt(v); row.Team=""; row.Alliance="";
-      const s = state.schedule.find(x=>x.comp===row.Comp && asInt(x.match)===row.Match);
-      if(s) row.Event = s.event;
-      saveAll(); renderRaw();
-    }));
-
-    // Team dropdown (depends on Comp+Match)
-    const teamOpts = (row.Comp && row.Match) ? teamOptionsFor(row.Comp, row.Match) : [];
-    cells.push(selectInput(["", ...teamOpts], row.Team||"", v=>{
-      row.Team=asInt(v);
-      row.Alliance = allianceOf(row.Comp, row.Match, row.Team); // auto-set Alliance
-      saveAll(); renderRaw();
-    }));
-
-    // Alliance display (computed)
+    // Fixed schedule fields (read-only text)
+    cells.push(`<span class="mono">${row.Event||""}</span>`);
+    cells.push(`<span class="mono">${row.Comp||""}</span>`);
+    cells.push(`<span class="mono">${row.Match||""}</span>`);
+    cells.push(`<span class="mono">${row.Team||""}</span>`);
     cells.push(`<span class="mono">${row.Alliance||""}</span>`);
 
     // Booleans as checkboxes
@@ -760,23 +774,6 @@ function renderRaw(){
     tb.appendChild(mkRow(cells));
   });
 }
-
-// Add Row (one per click)
-qs("#addEmptyRow").onclick = ()=>{
-  const r = {};
-  RAW_HEADERS.forEach(h=>{
-    if (["AUTO Leave","END: Park","END: Shallow","END: Deep"].includes(h)) r[h]=0;
-    else r[h]="";
-  });
-  r["Comp"]=""; r["Match"]=""; r["Team"]=""; r["Alliance"]="";
-  r["Fouls: Minor"]=0; r["Fouls: Major"]=0;
-  r["AUTO: L1"]=0; r["AUTO: L2"]=0; r["AUTO: L3"]=0; r["AUTO: L4"]=0;
-  r["AUTO: Alg→Proc"]=0; r["AUTO: Alg→Net"]=0;
-  r["TELE: L1"]=0; r["TELE: L2"]=0; r["TELE: L3"]=0; r["TELE: L4"]=0;
-  r["TELE: Alg→Proc"]=0; r["TELE: Alg→Net"]=0;
-  r["AUTO Pts"]=0; r["TELE Pts"]=0; r["END Pts"]=0; r["TOTAL"]=0; r["Opp Pts From Fouls"]=0;
-  state.raw.push(r); saveAll(); renderRaw();
-};
 
 /* Pit scouting */
 function reliabilityFactor(team){
@@ -936,7 +933,7 @@ function computePredictions(){
     const F = asNum(m.get(team)?.["Avg FOUL to Opp"]||0);
     const rf = reliabilityFactorForTeam(team);
     return (A*W.wAuto + T*W.wTele + E*W.wEnd - F*W.wFoul) * rf;
-  }
+    }
   const rC = r.reduce((acc,t)=>acc+customFor(t, sm), 0);
   const bC = b.reduce((acc,t)=>acc+customFor(t, sm), 0);
   qs("#predRedCustom").textContent = rC.toFixed(1);
@@ -972,7 +969,7 @@ function renderPlanner(){
     const ourAlliance = ourRow?.alliance || "";
     const partners = rows.filter(r=>r.alliance===ourAlliance && asInt(r.team)!==our).map(r=>r.team).join(", ");
     const opps = rows.filter(r=>r.alliance!==ourAlliance).map(r=>r.team).join(", ");
-    const time = (state.schedule.find(x=>asInt(x.match)===m)||{}).time || "";
+    const time = (state.schedule.find(x=>asInt(x.match)===m && x.comp===ourRow?.comp)||{}).time || (state.schedule.find(x=>asInt(x.match)===m)||{}).time || "";
     tb.appendChild(mkRow([m, ourAlliance, partners, opps, time]));
   }
   const teamsWeFace = uniq(
@@ -997,6 +994,32 @@ function renderPlanner(){
     const gapCell = gaps.length? `<span class="pill warn mono">${gaps.join(", ")}</span>` : `<span class="pill ok">none</span>`;
     tb3.appendChild(mkRow([m, opps[0]||"", opps[1]||"", opps[2]||"", gapCell]));
   }
+
+  // NEW: Partners’ Other Matches (excluding our own matches)
+  const partnersSet = new Set(
+    ours
+      .map(r => {
+        const sameMatch = state.scheduleExpanded.filter(x => asInt(x.match)===asInt(r.match) && x.alliance===r.alliance);
+        return sameMatch.filter(x => asInt(x.team)!==our).map(x => asInt(x.team));
+      })
+      .flat()
+  );
+  const ourMatchSet = new Set(ourMatches);
+  const rowsPartner = [];
+  for (const p of partnersSet){
+    const theirRows = state.scheduleExpanded.filter(x=>asInt(x.team)===p);
+    for (const r of theirRows){
+      if (ourMatchSet.has(asInt(r.match))) continue; // skip our own matches
+      const allRows = state.scheduleExpanded.filter(x=>asInt(x.match)===asInt(r.match));
+      const withList = allRows.filter(x=>x.alliance===r.alliance).map(x=>x.team).join(", ");
+      const vsList  = allRows.filter(x=>x.alliance!==r.alliance).map(x=>x.team).join(", ");
+      const time = (state.schedule.find(s=>asInt(s.match)===asInt(r.match) && s.comp===r.comp)||{}).time || "";
+      rowsPartner.push({match:r.match, team:p, alliance:r.alliance, with:withList, vs:vsList, time});
+    }
+  }
+  rowsPartner.sort((a,b)=>asInt(a.match)-asInt(b.match));
+  const tb4 = qs("#partnerMatchesTbl tbody"); tb4.innerHTML="";
+  rowsPartner.forEach(x=> tb4.appendChild(mkRow([x.match, x.team, x.alliance, x.with, x.vs, x.time])));
 }
 
 /* Misc */
@@ -1043,8 +1066,8 @@ qs("#parseSchedule").onclick = ()=>{
   onScheduleUpdated();
 };
 qs("#clearSchedule").onclick = ()=>{
-  state.schedule = []; state.scheduleExpanded = [];
-  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); saveAll();
+  state.schedule = []; state.scheduleExpanded = []; state.raw = [];
+  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderRaw(); renderPlanner(); saveAll();
 };
 qs("#recompute").onclick = ()=> recomputeEverything();
 qs("#pickMatch").onchange = ()=>{
@@ -1074,13 +1097,12 @@ function boot(){
   loadAll();
   renderRules();
   bindSettings();
-  renderRawHeaders();       // category headers (sticky)
-  renderPit();
-  renderSchedule();
   renderSchedExpanded();
+  renderSchedule();
   renderSchedulePicklist();
   renderAvgHeaders();
-  renderRaw();
+  renderPit();
+  renderRawHeadersAndBody();
   recomputeEverything();
 }
 boot();
