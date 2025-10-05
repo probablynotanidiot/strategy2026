@@ -34,7 +34,7 @@
   .bad{color:#ffd1d1; border-color:#553232; background:#2a1717}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .scroll{max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px}
-  .hscroll{overflow-x:auto;} /* horizontal scroll for small screens */
+  .hscroll{overflow-x:auto;}
   .tight th,.tight td{padding:4px 6px}
   .grid{display:grid; gap:8px; grid-template-columns:repeat(4,minmax(0,1fr))}
   .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -43,11 +43,9 @@
   .help{font-size:12px; line-height:1.35}
   .nowrap{white-space:nowrap}
 
-  /* Raw table: wide + readable on phones */
   #rawTbl{ min-width:1500px; }
   #rawTbl thead th{ white-space:nowrap; }
 
-  /* Sticky two-row header for Raw */
   #rawTbl thead tr:first-child th{ top:0; z-index:3; }
   #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
 </style>
@@ -55,7 +53,7 @@
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste schedule → <b>Raw Data auto-expands</b> (6 rows per match) → checkboxes for booleans, capped counts across Auto+Tele → averages, predictor, planner. Data saves to your browser.</p>
+<p class="muted help">Fetch/paste schedule → build your own <b>Raw Data</b> rows from selectors (Comp → Match → Team) → alliance autofills, checkboxes & caps → averages, predictor, planner. Data saves to your browser.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -174,7 +172,7 @@
         <button id="clearSchedule" class="secondary">Clear</button>
         <button id="exportSchedule" class="ghost">Export CSV</button>
       </div>
-      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Raw Data</b> (auto-expanded, editable per team per match).</p>
+      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Schedule Expanded</b>. Raw Data is now manual: add your own rows using the dropdowns.</p>
     </div>
   </div>
   <div class="scroll" style="margin-top:10px">
@@ -201,11 +199,12 @@
   </div>
 </section>
 
-<!-- RAW DATA (auto-expanded; editable stats only) -->
+<!-- RAW DATA (manual; schedule-driven selectors) -->
 <section class="card">
-  <h2>Raw Data (Auto-expanded from Schedule)</h2>
-  <p class="help">Each row = one robot in one match. Edit the scouting cells (checkboxes + counts). Event/Comp/Match/Team/Alliance come from schedule.</p>
+  <h2>Raw Data (Manual; use dropdowns fed by Schedule)</h2>
+  <p class="help">Click <b>Add Row</b> to create a scouting row. Pick <i>Comp</i> → <i>Match</i> → <i>Team</i>. Alliance and Event auto-fill. Booleans are checkboxes; counts are capped across Auto+Tele.</p>
   <div class="footer">
+    <button id="addRawRow">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
   </div>
   <div class="scroll hscroll">
@@ -326,10 +325,9 @@
         </table>
       </div>
     </div>
-    <!-- REPLACED CARD: Other Matches to Scout -->
     <div class="card" style="min-width:360px">
       <h3>Other Matches to Scout</h3>
-      <p class="muted help">Matches that don’t include us but do include teams we face. Highlighted teams are the opponents we face.</p>
+      <p class="muted help">Matches that don’t include us but do include teams we face. Highlighted teams are the opponents we face. Sorted by QM → SF → F.</p>
       <div class="scroll">
         <table id="otherMatchesTbl">
           <thead>
@@ -377,7 +375,7 @@ const state = {
   ],
   schedule: [],           // [{event,comp,set,match,time,red:[...],blue:[...]}]
   scheduleExpanded: [],   // [{event,comp,set,match,time,alliance,team}]
-  raw: [],                // one row per team per match
+  raw: [],                // manual rows now
   pit: [],
   tba: { key: "", lastEventKey: "" }
 };
@@ -567,15 +565,15 @@ function onScheduleUpdated(){
   expandSchedule();
   renderSchedule();
   renderSchedExpanded();
-  buildRawFromSchedule(true);   // merge existing by (Comp|Match|Team)
-  renderRaw();
   renderSchedulePicklist();
   renderPlanner();
+  // DO NOT auto-create raw rows anymore; keep user-entered rows
+  renderRaw();            // refresh dropdown options
   recomputeEverything();
   saveAll();
 }
 
-/* ======== RAW DATA (auto from schedule; one row per team/match) ======== */
+/* ======== RAW DATA (manual rows; selectors driven by schedule) ======== */
 const RAW_HEADERS = [
   "Event","Comp","Match","Team","Alliance",
   "AUTO Leave",
@@ -624,15 +622,31 @@ function renderRawHeaders(){
   thead.appendChild(detail);
 }
 
-// Build key to merge raw rows across schedule updates
-function rawKey(comp, match, team){ return `${comp}|${match}|${team}`; }
-function defaultRawFor(expRow){
+// Helpers to feed dropdowns
+function getCompLevels(){
+  return uniq(state.schedule.map(s => (s.comp||"").toString())).sort((a,b)=>a.localeCompare(b));
+}
+function getMatchesForComp(comp){
+  return uniq(state.schedule.filter(s => s.comp===comp).map(s => asInt(s.match))).sort((a,b)=>a-b);
+}
+function getSchedFor(comp, match){
+  return state.schedule.find(s => s.comp===comp && asInt(s.match)===asInt(match));
+}
+function getTeamsFor(comp, match){
+  const s = getSchedFor(comp, match);
+  if (!s) return {red:[], blue:[], all:[]};
+  const red = s.red.map(asInt), blue = s.blue.map(asInt);
+  return { red, blue, all:[...red, ...blue] };
+}
+
+// Create a blank manual row
+function newManualRawRow(){
   const r = {};
   RAW_HEADERS.forEach(h=>{
     if (["AUTO Leave","END: Park","END: Shallow","END: Deep"].includes(h)) r[h]=0;
     else r[h]="";
   });
-  r.Event = expRow.event; r.Comp = expRow.comp; r.Match = expRow.match; r.Team = expRow.team; r.Alliance = expRow.alliance;
+  r.Event=""; r.Comp=""; r.Match=""; r.Team=""; r.Alliance="";
   r["Fouls: Minor"]=0; r["Fouls: Major"]=0;
   r["AUTO: L1"]=0; r["AUTO: L2"]=0; r["AUTO: L3"]=0; r["AUTO: L4"]=0;
   r["AUTO: Alg→Proc"]=0; r["AUTO: Alg→Net"]=0;
@@ -640,30 +654,6 @@ function defaultRawFor(expRow){
   r["TELE: Alg→Proc"]=0; r["TELE: Alg→Net"]=0;
   r["AUTO Pts"]=0; r["TELE Pts"]=0; r["END Pts"]=0; r["TOTAL"]=0; r["Opp Pts From Fouls"]=0;
   return r;
-}
-function buildRawFromSchedule(merge=true){
-  const map = new Map();
-  if (merge){
-    for (const r of state.raw){
-      map.set(rawKey(r.Comp, r.Match, r.Team), r);
-    }
-  }
-  const newRows = [];
-  for (const ex of state.scheduleExpanded){
-    const key = rawKey(ex.comp, ex.match, ex.team);
-    if (map.has(key)){
-      const existing = map.get(key);
-      existing.Event = ex.event; existing.Comp = ex.comp; existing.Match = ex.match; existing.Team = ex.team; existing.Alliance = ex.alliance;
-      computePointsForRow(existing);
-      newRows.push(existing);
-    }else{
-      const r = defaultRawFor(ex);
-      computePointsForRow(r);
-      newRows.push(r);
-    }
-  }
-  state.raw = newRows;
-  saveAll();
 }
 
 // Caps & clamping across Auto+Tele
@@ -726,22 +716,70 @@ function inputCheckbox(checked, on){
   const i=document.createElement("input"); i.type="checkbox"; i.checked=!!checked;
   i.onchange=e=> on(e.target.checked?1:0); return i;
 }
+function selectElem(options, val, onChange, placeholder="—", disabled=false){
+  const s=document.createElement("select");
+  if (placeholder!=null){ const o=document.createElement("option"); o.value=""; o.textContent=placeholder; s.appendChild(o); }
+  options.forEach(v=>{ const o=document.createElement("option"); o.value=String(v); o.textContent=String(v).toUpperCase?String(v).toUpperCase():String(v); s.appendChild(o); });
+  s.value = val||"";
+  s.disabled = disabled;
+  s.onchange = e=> onChange(e.target.value);
+  return s;
+}
 
-// Render Raw table
+// Render Raw table (manual rows)
 function renderRawHeadersAndBody(){
   renderRawHeaders();
   renderRaw();
 }
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
+
+  const compLevels = getCompLevels();
+
   state.raw.forEach((row)=>{
     const cells=[];
 
-    // Fixed schedule fields (read-only text)
-    cells.push(`<span class="mono">${row.Event||""}</span>`);
-    cells.push(`<span class="mono">${row.Comp||""}</span>`);
-    cells.push(`<span class="mono">${row.Match||""}</span>`);
-    cells.push(`<span class="mono">${row.Team||""}</span>`);
+    // EVENT (read-only, derived once comp+match chosen)
+    const deriveSched = getSchedFor(row.Comp, row.Match);
+    const eventText = deriveSched?.event || "";
+    row.Event = eventText;
+
+    // COMP select
+    const compSel = selectElem(compLevels, row.Comp, (v)=>{
+      row.Comp = v || "";
+      row.Match = ""; row.Team = ""; row.Alliance="";
+      computePointsForRow(row); saveAll(); renderRaw();
+    }, "comp", compLevels.length===0);
+    cells.push(compSel);
+
+    // MATCH select (depends on comp)
+    const matchOpts = row.Comp ? getMatchesForComp(row.Comp) : [];
+    const matchSel = selectElem(matchOpts, row.Match, (v)=>{
+      row.Match = v || "";
+      row.Team=""; row.Alliance="";
+      const s = getSchedFor(row.Comp, row.Match);
+      row.Event = s?.event || "";
+      computePointsForRow(row); saveAll(); renderRaw();
+    }, "match", !row.Comp);
+    // Show Event next to comp visually in the first column: but columns are fixed. We'll keep Event as its own first col.
+    // So prepend Event before comp in table order:
+    cells.unshift(`<span class="mono">${eventText}</span>`); // Event as first cell
+    cells.push(matchSel);
+
+    // TEAM select (6 teams of the match)
+    const teamsFor = (row.Comp && row.Match)? getTeamsFor(row.Comp, row.Match) : {all:[],red:[],blue:[]};
+    const teamSel = selectElem(teamsFor.all, row.Team, (v)=>{
+      row.Team = v || "";
+      // Auto-alliance
+      const tNum = asInt(row.Team);
+      if (teamsFor.red.includes(tNum)) row.Alliance="Red";
+      else if (teamsFor.blue.includes(tNum)) row.Alliance="Blue";
+      else row.Alliance="";
+      computePointsForRow(row); saveAll(); renderRaw();
+    }, "team", !(row.Comp && row.Match));
+    cells.push(teamSel);
+
+    // ALLIANCE (auto)
     cells.push(`<span class="mono">${row.Alliance||""}</span>`);
 
     // Booleans as checkboxes
@@ -780,6 +818,7 @@ function renderRaw(){
     tb.appendChild(mkRow(cells));
   });
 }
+qs("#addRawRow").onclick = ()=>{ state.raw.push(newManualRawRow()); renderRaw(); saveAll(); };
 
 /* Pit scouting */
 function reliabilityFactor(team){
@@ -1007,10 +1046,11 @@ function renderPlanner(){
     tb3.appendChild(mkRow([m, opps[0]||"", opps[1]||"", opps[2]||"", gapCell]));
   }
 
-  // OTHER MATCHES TO SCOUT (we don't play, but include ≥1 opponent we face)
+  // OTHER MATCHES TO SCOUT (we don't play, but include ≥1 opponent we face) — sorted QM → SF → F, then set, then match
   (function buildOtherMatchesToScout(){
     const tb = qs("#otherMatchesTbl tbody"); if (!tb) return;
-    if (!our) { tb.innerHTML = ""; return; }
+    tb.innerHTML = "";
+    if (!our) return;
 
     const ourMatchSet = new Set(ourMatches);
     // Collect all opponents we face in our matches
@@ -1024,7 +1064,6 @@ function renderPlanner(){
       }
     }
 
-    // Helper: highlight teams that are opponents we face
     const hi = (t) => opponentsSet.has(asInt(t))
       ? `<span class="pill bad mono">${t}</span>`
       : `<span class="mono">${t}</span>`;
@@ -1036,24 +1075,30 @@ function renderPlanner(){
       const important = allTeams.filter(t => opponentsSet.has(t));
       if (important.length === 0) continue;
 
-      const teamsCell = `R: ${hi(s.red[0])}, ${hi(s.red[1])}, ${hi(s.red[2])} &nbsp; | &nbsp; B: ${hi(s.blue[0])}, ${hi(s.blue[1])}, ${hi(s.blue[2])}`;
-      const importantCell = important.map(t => `<span class="pill warn mono">${t}</span>`).join(" ");
       candidates.push({
-        match: asInt(s.match),
         comp: s.comp || "",
+        set: asInt(s.set || 0),
+        match: asInt(s.match),
+        time: s.time || "",
         count: important.length,
-        teamsCell,
-        importantCell,
-        time: s.time || ""
+        teamsCell:
+          `R: ${hi(s.red[0])}, ${hi(s.red[1])}, ${hi(s.red[2])} &nbsp; | &nbsp; ` +
+          `B: ${hi(s.blue[0])}, ${hi(s.blue[1])}, ${hi(s.blue[2])}`,
+        importantCell: important.map(t => `<span class="pill warn mono">${t}</span>`).join(" ")
       });
     }
 
-    // Sort: more important teams first, then by match number
-    candidates.sort((a,b) => (b.count - a.count) || (a.match - b.match));
+    const compOrder = { qm:0, sf:1, f:2 };
+    candidates.sort((a,b)=>{
+      const ra = compOrder[(a.comp||"").toLowerCase()] ?? 99;
+      const rb = compOrder[(b.comp||"").toLowerCase()] ?? 99;
+      if (ra !== rb) return ra - rb;
+      if (a.set !== b.set) return a.set - b.set;
+      return a.match - b.match;
+    });
 
-    tb.innerHTML = "";
     for (const c of candidates) {
-      const label = `${c.comp} ${c.match}`;
+      const label = `${(c.comp||"").toUpperCase()} ${c.match}`;
       tb.appendChild(mkRow([label, c.teamsCell, c.importantCell, String(c.count), c.time]));
     }
   })();
@@ -1102,8 +1147,8 @@ qs("#parseSchedule").onclick = ()=>{
   onScheduleUpdated();
 };
 qs("#clearSchedule").onclick = ()=>{
-  state.schedule = []; state.scheduleExpanded = []; state.raw = [];
-  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderRaw(); renderPlanner(); saveAll();
+  state.schedule = []; state.scheduleExpanded = [];
+  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderPlanner(); renderRaw(); saveAll();
 };
 qs("#recompute").onclick = ()=> recomputeEverything();
 qs("#pickMatch").onchange = ()=>{
