@@ -591,6 +591,12 @@ function renderRawHeaders(){
   const thead = document.querySelector("#rawTbl thead");
   thead.innerHTML = "";
 
+  function renderRawHeadersAndBody(){
+  renderRawHeaders();
+  ensureRawColgroup();   // <-- add this line
+  renderRaw();
+}
+
   const cat = document.createElement("tr");
   [
     ["",5],
