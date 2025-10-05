@@ -327,17 +327,23 @@
       </div>
     </div>
     <div class="card" style="min-width:360px">
-      <h3>Partners’ Other Matches</h3>
-      <p class="muted help">Matches that include our partners (not including our own matches) — great for pre-scouting.</p>
-      <div class="scroll">
-        <table id="partnerMatchesTbl">
-          <thead><tr><th>Match</th><th>Team</th><th>Alliance</th><th>With</th><th>Vs</th><th>Time</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
+  <h3>Other Matches to Scout</h3>
+  <p class="muted help">Matches that don’t include us but do include teams we face. Highlighted teams are the opponents we face.</p>
+  <div class="scroll">
+    <table id="otherMatchesTbl">
+      <thead>
+        <tr>
+          <th>Match</th>
+          <th>Teams (highlighted = opponents we face)</th>
+          <th>Important Teams</th>
+          <th>Count</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
-</section>
+</div>
 
 <script>
 /* =========================
@@ -995,91 +1001,66 @@ function renderPlanner(){
     tb3.appendChild(mkRow([m, opps[0]||"", opps[1]||"", opps[2]||"", gapCell]));
   }
 
-  // NEW: Partners’ Other Matches (excluding our own matches)
-  const partnersSet = new Set(
-    ours
-      .map(r => {
-        const sameMatch = state.scheduleExpanded.filter(x => asInt(x.match)===asInt(r.match) && x.alliance===r.alliance);
-        return sameMatch.filter(x => asInt(x.team)!==our).map(x => asInt(x.team));
-      })
-      .flat()
-  );
-  const ourMatchSet = new Set(ourMatches);
-  const rowsPartner = [];
-  for (const p of partnersSet){
-    const theirRows = state.scheduleExpanded.filter(x=>asInt(x.team)===p);
-    for (const r of theirRows){
-      if (ourMatchSet.has(asInt(r.match))) continue; // skip our own matches
-      const allRows = state.scheduleExpanded.filter(x=>asInt(x.match)===asInt(r.match));
-      const withList = allRows.filter(x=>x.alliance===r.alliance).map(x=>x.team).join(", ");
-      const vsList  = allRows.filter(x=>x.alliance!==r.alliance).map(x=>x.team).join(", ");
-      const time = (state.schedule.find(s=>asInt(s.match)===asInt(r.match) && s.comp===r.comp)||{}).time || "";
-      rowsPartner.push({match:r.match, team:p, alliance:r.alliance, with:withList, vs:vsList, time});
-    }
-  }
-  rowsPartner.sort((a,b)=>asInt(a.match)-asInt(b.match));
-  const tb4 = qs("#partnerMatchesTbl tbody"); tb4.innerHTML="";
-  rowsPartner.forEach(x=> tb4.appendChild(mkRow([x.match, x.team, x.alliance, x.with, x.vs, x.time])));
-}
+  // OTHER MATCHES TO SCOUT (we don't play, but include ≥1 opponent we face)
+(function buildOtherMatchesToScout(){
+  const our = asInt(state.config.ourTeam);
+  if (!our) { qs("#otherMatchesTbl tbody").innerHTML = ""; return; }
 
-/* Misc */
-function renderSchedulePicklist(){
-  const sel=qs("#pickMatch");
-  const seen=new Set();
-  sel.innerHTML='<option value="">—</option>';
-  for (const s of state.schedule){
-    if (s.comp?.toLowerCase().startsWith("qm") && !seen.has(s.match)){
-      const o=document.createElement("option");
-      o.value=String(s.match); o.textContent=s.match;
-      sel.appendChild(o); seen.add(s.match);
+  // Our match numbers (to exclude)
+  const ourMatchSet = new Set(
+    state.scheduleExpanded.filter(r => asInt(r.team) === our).map(r => asInt(r.match))
+  );
+
+  // Collect all opponents we face in our matches
+  const opponentsSet = new Set();
+  for (const m of ourMatchSet) {
+    const rows = state.scheduleExpanded.filter(r => asInt(r.match) === m);
+    const ourRow = rows.find(r => asInt(r.team) === our);
+    if (!ourRow) continue;
+    for (const r of rows) {
+      if (r.alliance !== ourRow.alliance) opponentsSet.add(asInt(r.team));
     }
   }
-}
-qs("#exportSchedule").onclick = ()=>{
-  const rows = state.schedule.map(m => ({
-    Event:m.event, CompLevel:m.comp, Set:m.set, Match:m.match, Time:m.time,
-    Red1:m.red[0], Red2:m.red[1], Red3:m.red[2], Blue1:m.blue[0], Blue2:m.blue[1], Blue3:m.blue[2]
-  }));
-  download("schedule.csv", toCSV(rows));
-};
-qs("#exportRaw").onclick = ()=> download("raw_data.csv", toCSV(state.raw));
-qs("#exportPit").onclick = ()=> download("pit_scouting.csv", toCSV(state.pit));
-qs("#exportJson").onclick = ()=> download("reefscape_scouter.json", JSON.stringify(state, null, 2));
-qs("#importFile").onchange = (e)=>{
-  const f = e.target.files?.[0]; if(!f) return;
-  const fr = new FileReader();
-  fr.onload = ()=>{
-    try{
-      const obj = JSON.parse(fr.result);
-      Object.assign(state, obj);
-      saveAll(); boot();
-    }catch(err){ alert("Invalid JSON"); }
-  };
-  fr.readAsText(f);
-};
-qs("#clearStorage").onclick = ()=>{ if(confirm("Clear localStorage & reset?")){ localStorage.removeItem(LS_KEY); location.reload(); } };
-qs("#saveCfg").onclick = saveSettings;
-qs("#saveWeights").onclick = saveWeights;
-qs("#parseSchedule").onclick = ()=>{
-  const txt = qs("#schedulePaste").value;
-  state.schedule = parseScheduleText(txt);
-  onScheduleUpdated();
-};
-qs("#clearSchedule").onclick = ()=>{
-  state.schedule = []; state.scheduleExpanded = []; state.raw = [];
-  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderRaw(); renderPlanner(); saveAll();
-};
-qs("#recompute").onclick = ()=> recomputeEverything();
-qs("#pickMatch").onchange = ()=>{
-  const m = asInt(qs("#pickMatch").value);
-  if(!m) return;
-  const s = state.schedule.find(x=>x.comp?.toLowerCase().startsWith("qm") && asInt(x.match)===m);
-  if(!s) return;
-  qs("#r1").value=s.red[0]||""; qs("#r2").value=s.red[1]||""; qs("#r3").value=s.red[2]||"";
-  qs("#b1").value=s.blue[0]||""; qs("#b2").value=s.blue[1]||""; qs("#b3").value=s.blue[2]||"";
-  computePredictions();
-};
-["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=> qs(id).addEventListener("input", computePredictions));
+
+  // Helper: highlight teams that are opponents we face
+  const hi = (t) => opponentsSet.has(asInt(t))
+    ? `<span class="pill bad mono">${t}</span>`
+    : `<span class="mono">${t}</span>`;
+
+  // Build candidate list from the full schedule
+  const candidates = [];
+  for (const s of state.schedule) {
+    const isOur = ourMatchSet.has(asInt(s.match));
+    if (isOur) continue; // skip our matches
+
+    const allTeams = [...s.red, ...s.blue].map(asInt);
+    const important = allTeams.filter(t => opponentsSet.has(t));
+    if (important.length === 0) continue;
+
+    const matchLabel = `${s.comp || ""} ${s.match}`;
+    const teamsCell = `R: ${hi(s.red[0])}, ${hi(s.red[1])}, ${hi(s.red[2])} &nbsp; | &nbsp; B: ${hi(s.blue[0])}, ${hi(s.blue[1])}, ${hi(s.blue[2])}`;
+    const importantCell = important.map(t => `<span class="pill warn mono">${t}</span>`).join(" ");
+    candidates.push({
+      match: asInt(s.match),
+      comp: s.comp || "",
+      count: important.length,
+      teamsCell,
+      importantCell,
+      time: s.time || ""
+    });
+  }
+
+  // Sort: more important teams first, then by match number
+  candidates.sort((a,b) => (b.count - a.count) || (a.match - b.match));
+
+  // Render
+  const tb = qs("#otherMatchesTbl tbody");
+  tb.innerHTML = "";
+  for (const c of candidates) {
+    const label = `${c.comp} ${c.match}`;
+    tb.appendChild(mkRow([label, c.teamsCell, c.importantCell, String(c.count), c.time]));
+  }
+})();
 
 /* Recompute */
 function recomputeEverything(){
