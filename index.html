@@ -9,7 +9,7 @@
     --bg:#0b0f14; --card:#111722; --muted:#98a2b3; --text:#e6edf3; --accent:#2e7dd7; --accent2:#00b894; --warn:#ffd166;
     --border:#1f2a3a;
   }
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji"; 
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans"; 
        background:var(--bg); color:var(--text); margin:0; padding:24px;}
   h1,h2{margin:12px 0 8px}
   small, .muted{color:var(--muted)}
@@ -23,6 +23,7 @@
     width:100%; box-sizing:border-box; padding:6px 8px; background:#0d1420; color:var(--text);
     border:1px solid var(--border); border-radius:8px; font-size:13px;
   }
+  input[type="checkbox"]{transform:scale(1.2); cursor:pointer}
   textarea{min-height:84px}
   button{background:var(--accent); border:none; color:#fff; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600}
   button.secondary{background:#263445}
@@ -31,7 +32,7 @@
   .ok{color:#c6f6d5; border-color:#23543f; background:#0f2b1f}
   .warn{color:#fff1c1; border-color:#5d4a1e; background:#2a2316}
   .bad{color:#ffd1d1; border-color:#553232; background:#2a1717}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .scroll{max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px}
   .tight th,.tight td{padding:4px 6px}
   .grid{display:grid; gap:8px; grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -45,20 +46,32 @@
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Paste schedule or fetch from TBA → auto-prefill Raw Data → enter scouting → get averages, predictions, RP checks, planner. Data auto-saves to localStorage. Your TBA key stays in your browser.</p>
+<p class="muted help">Fetch/paste schedule → **manually add Raw rows** (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts for coral/algae → averages, predictor, planner. Data auto-saves locally.</p>
 
 <div class="row">
   <!-- SETTINGS -->
-  <section class="card" style="max-width:560px">
+  <section class="card" style="max-width:600px">
     <h2>Settings</h2>
     <table class="tight">
       <tbody>
-        <tr><th style="width:40%">Our Team</th>
+        <tr><th style="width:45%">Our Team</th>
           <td><input id="ourTeam" type="number" placeholder="e.g., 1234" /></td></tr>
         <tr><th>Decay Factor (weighted avg)</th>
           <td><input id="decay" type="number" step="0.01" min="0" max="1" value="0.85"/></td></tr>
         <tr><th>Max Matches in Schedule</th>
           <td><input id="maxMatches" type="number" value="200"/></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Per-Robot Max Caps (enforced per row) <!-- NEW --></h3>
+    <table class="tight">
+      <tbody>
+        <tr><th>Max Coral L1</th><td><input id="capL1" type="number" value="6"/></td></tr>
+        <tr><th>Max Coral L2</th><td><input id="capL2" type="number" value="6"/></td></tr>
+        <tr><th>Max Coral L3</th><td><input id="capL3" type="number" value="6"/></td></tr>
+        <tr><th>Max Coral L4</th><td><input id="capL4" type="number" value="6"/></td></tr>
+        <tr><th>Max Algae → Processor</th><td><input id="capAlgP" type="number" value="6"/></td></tr>
+        <tr><th>Max Algae → Net</th><td><input id="capAlgN" type="number" value="6"/></td></tr>
       </tbody>
     </table>
 
@@ -100,7 +113,7 @@
     <h3>Strategy Weights & Reliability Map</h3>
     <table class="tight" id="weightsTbl">
       <tbody>
-        <tr><th style="width:40%">Auto Points Weight</th><td><input id="wAuto" type="number" step="0.1" value="1"/></td></tr>
+        <tr><th style="width:45%">Auto Points Weight</th><td><input id="wAuto" type="number" step="0.1" value="1"/></td></tr>
         <tr><th>Teleop Points Weight</th><td><input id="wTele" type="number" step="0.1" value="1"/></td></tr>
         <tr><th>Endgame Points Weight</th><td><input id="wEnd" type="number" step="0.1" value="1"/></td></tr>
         <tr><th>Foul Impact Weight</th><td><input id="wFoul" type="number" step="0.1" value="1"/></td></tr>
@@ -118,7 +131,7 @@
 <section class="card">
   <h2>Schedule (Fetch from TBA or Copy & Paste)</h2>
 
-  <!-- NEW: TBA Fetch Controls -->
+  <!-- TBA Fetch Controls -->
   <div class="grid-3">
     <div>
       <label class="muted">Event Key</label>
@@ -138,7 +151,7 @@
     <button id="fetchFromTBA">Fetch from TBA</button>
     <button id="importTBAJson" class="ghost">Import TBA JSON…</button>
     <input id="importTBAFile" type="file" accept="application/json" hidden />
-    <small class="muted">Endpoint used: <span class="mono">/api/v3/event/{event_key}/matches/simple</span></small>
+    <small class="muted">Endpoint: <span class="mono">/api/v3/event/{event_key}/matches/simple</span></small>
   </div>
 
   <hr/>
@@ -152,7 +165,7 @@
         <button id="clearSchedule" class="secondary">Clear</button>
         <button id="exportSchedule" class="ghost">Export CSV</button>
       </div>
-      <p class="muted help">After parsing or fetching, the app:<br>1) builds **Schedule Expanded** (6 rows per match)<br>2) **prefills Raw Data** (Event/Match/Team/Alliance)</p>
+      <p class="muted help">After parsing or fetching, the app builds **Schedule** + **Expanded** (6 rows per match). Raw Data is **manual** now.</p>
     </div>
   </div>
   <div class="scroll" style="margin-top:10px">
@@ -181,9 +194,10 @@
 
 <!-- RAW DATA -->
 <section class="card">
-  <h2>Raw Data (Event/Match/Team/Alliance are now editable)</h2>
+  <h2>Raw Data (Manual)</h2>
+  <p class="help">Add rows → choose **Comp Level**, then **Match #** (from schedule), then **Team** (auto-sets Alliance). Tick checkboxes for boolean events; coral/algae counts are capped by Settings.</p>
   <div class="footer">
-    <button id="addEmptyRow" class="ghost">Add empty row</button>
+    <button id="addEmptyRow" class="ghost">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
   </div>
   <div class="scroll">
@@ -278,7 +292,6 @@
 <!-- SCOUT PLANNER -->
 <section class="card">
   <h2>Scout Planner</h2>
-  <p class="help">Shows our matches, partners/opponents, and a list of teams to scout, with coverage gaps.</p>
   <div class="row">
     <div class="card" style="min-width:360px">
       <h3>Our Matches</h3>
@@ -317,6 +330,8 @@ const state = {
     ourTeam: "",
     decay: 0.85,
     maxMatches: 200,
+    // NEW: caps enforced per row
+    caps: { L1:6, L2:6, L3:6, L4:6, AlgP:6, AlgN:6 },
     rp: { coralPerLevel:7, levels:4, levelsCoop:3, bargePts:16 }
   },
   weights: { wAuto:1, wTele:1, wEnd:1, wFoul:1, relFloor:0.8, relCeil:1.2 },
@@ -336,28 +351,21 @@ const state = {
   ],
   schedule: [],           // [{event,comp,set,match,time,red:[t1,t2,t3],blue:[t1,t2,t3]}]
   scheduleExpanded: [],   // computed: [{event,comp,set,match,time,alliance,team}]
-  raw: [],                // rows for scouting
-  pit: [],                // pit scouting rows
-  tba: { key: "", lastEventKey: "" } // NEW: store API key locally
+  // NEW: raw is manual only now
+  raw: [],
+  pit: [],
+  tba: { key: "", lastEventKey: "" }
 };
 
-// localStorage helpers
+// localStorage
 const LS_KEY = "reefscape2025_scout";
 function saveAll(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 function loadAll(){
-  const s = localStorage.getItem(LS_KEY);
-  if (!s) return;
-  try {
-    const o = JSON.parse(s);
-    ["config","weights","rules","schedule","scheduleExpanded","raw","pit","tba"].forEach(k=>{
-      if (o[k]!==undefined) state[k]=o[k];
-    });
-  } catch(e){ console.warn("loadAll failed", e); }
+  const s = localStorage.getItem(LS_KEY); if (!s) return;
+  try { Object.assign(state, JSON.parse(s)); } catch(e){}
 }
 
-/* =========================
-   Utilities
-   ========================= */
+/* Utils */
 const qs = sel => document.querySelector(sel);
 function csvEscape(v){ if(v==null) return ""; v = String(v); return /[,"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; }
 function toCSV(rows){
@@ -368,9 +376,7 @@ function toCSV(rows){
 function download(filename, text){
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], {type:"text/plain"}));
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
 }
 function uniq(arr){ return [...new Set(arr)]; }
 function sum(arr){ return arr.reduce((a,b)=>a+(+b||0),0); }
@@ -379,19 +385,23 @@ function asInt(v){ const n = parseInt(v,10); return isFinite(n)? n : 0; }
 function asNum(v){ const n = Number(v); return isFinite(n)? n : 0; }
 function mkRow(cols){ const tr=document.createElement("tr"); cols.forEach(c=>{ const td=document.createElement("td"); if(c instanceof Node){ td.appendChild(c);} else {td.innerHTML=c;} tr.appendChild(td); }); return tr; }
 
-/* =========================
-   Render rules & weights & settings
-   ========================= */
+/* Render rules & settings */
 function renderRules(){
   const tb = qs("#rulesTbl tbody"); tb.innerHTML="";
-  state.rules.forEach(r=>{
-    tb.appendChild(mkRow([r.item, r.auto, r.tele, r.notes]));
-  });
+  state.rules.forEach(r=> tb.appendChild(mkRow([r.item, r.auto, r.tele, r.notes])));
 }
 function bindSettings(){
   qs("#ourTeam").value = state.config.ourTeam || "";
   qs("#decay").value = state.config.decay;
   qs("#maxMatches").value = state.config.maxMatches;
+
+  qs("#capL1").value = state.config.caps.L1;
+  qs("#capL2").value = state.config.caps.L2;
+  qs("#capL3").value = state.config.caps.L3;
+  qs("#capL4").value = state.config.caps.L4;
+  qs("#capAlgP").value = state.config.caps.AlgP;
+  qs("#capAlgN").value = state.config.caps.AlgN;
+
   qs("#rpCoralPerLevel").value = state.config.rp.coralPerLevel;
   qs("#rpLevels").value = state.config.rp.levels;
   qs("#rpLevelsCoop").value = state.config.rp.levelsCoop;
@@ -404,7 +414,6 @@ function bindSettings(){
   qs("#relFloor").value = state.weights.relFloor;
   qs("#relCeil").value = state.weights.relCeil;
 
-  // NEW: TBA controls bind
   qs("#tbaKey").value = state.tba.key || "";
   qs("#tbaEventKey").value = state.tba.lastEventKey || "";
 }
@@ -412,6 +421,14 @@ function saveSettings(){
   state.config.ourTeam = qs("#ourTeam").value.trim();
   state.config.decay = asNum(qs("#decay").value);
   state.config.maxMatches = asInt(qs("#maxMatches").value);
+
+  state.config.caps.L1 = asInt(qs("#capL1").value);
+  state.config.caps.L2 = asInt(qs("#capL2").value);
+  state.config.caps.L3 = asInt(qs("#capL3").value);
+  state.config.caps.L4 = asInt(qs("#capL4").value);
+  state.config.caps.AlgP = asInt(qs("#capAlgP").value);
+  state.config.caps.AlgN = asInt(qs("#capAlgN").value);
+
   state.config.rp.coralPerLevel = asInt(qs("#rpCoralPerLevel").value);
   state.config.rp.levels = asInt(qs("#rpLevels").value);
   state.config.rp.levelsCoop = asInt(qs("#rpLevelsCoop").value);
@@ -428,12 +445,10 @@ function saveWeights(){
   saveAll(); recomputeEverything();
 }
 
-/* =========================
-   TBA Fetch + Import JSON
-   ========================= */
+/* TBA Fetch + Import JSON */
 function normalizeFromTBA(json, eventKey){
   return json.map(m => ({
-    event: eventKey || "",
+    event: eventKey || (m.event_key||""),
     comp: m.comp_level || "",
     set: m.set_number || 1,
     match: m.match_number || 0,
@@ -462,15 +477,9 @@ async function fetchFromTBA(){
     state.schedule = normalizeFromTBA(data, eventKey);
     state.tba.lastEventKey = eventKey;
     onScheduleUpdated();
-  }catch(err){
-    alert("Fetch failed: " + err.message);
-  }
+  }catch(err){ alert("Fetch failed: " + err.message); }
 }
-qs("#saveTBAKey").onclick = ()=>{
-  state.tba.key = qs("#tbaKey").value.trim();
-  saveAll();
-  alert("Saved TBA key to this browser.");
-};
+qs("#saveTBAKey").onclick = ()=>{ state.tba.key = qs("#tbaKey").value.trim(); saveAll(); alert("Saved TBA key to this browser."); };
 qs("#fetchFromTBA").onclick = fetchFromTBA;
 qs("#importTBAJson").onclick = ()=> qs("#importTBAFile").click();
 qs("#importTBAFile").onchange = async (e)=>{
@@ -486,9 +495,7 @@ qs("#importTBAFile").onchange = async (e)=>{
   }catch{ alert("Invalid JSON."); }
 };
 
-/* =========================
-   Schedule parse/paste
-   ========================= */
+/* Schedule parse/paste */
 function parseScheduleText(txt){
   const rows = txt.trim().split(/\r?\n/).filter(Boolean);
   const out = [];
@@ -530,32 +537,28 @@ function expandSchedule(){
 }
 function renderSchedExpanded(){
   const tb = qs("#schedExpTbl tbody"); tb.innerHTML="";
-  state.scheduleExpanded.forEach(r=>{
-    tb.appendChild(mkRow([r.event,r.comp,r.set,r.match,r.time,r.alliance,r.team]));
-  });
+  state.scheduleExpanded.forEach(r=> tb.appendChild(mkRow([r.event,r.comp,r.set,r.match,r.time,r.alliance,r.team])));
 }
 function onScheduleUpdated(){
   expandSchedule();
-  prefillRawFromSchedule();
-  recomputeAllPoints();
+  // IMPORTANT: do NOT prefill raw anymore (manual flow)
   renderSchedule();
   renderSchedExpanded();
   renderSchedulePicklist();
-  renderRaw();
   renderPlanner();
   saveAll();
 }
 
-/* =========================
-   Raw Data table (editable Event/Match/Team/Alliance)
-   ========================= */
+/* ======== RAW DATA (manual; dropdowns + caps + checkboxes) ======== */
+// Columns
 const RAW_HEADERS = [
-  "Event","Match","Team","Alliance",
-  "AUTO: Leave","AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
+  "Event","Comp","Match","Team","Alliance",
+  "AUTO Leave",                // checkbox
+  "AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
   "AUTO: Alg→Proc","AUTO: Alg→Net",
   "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
   "TELE: Alg→Proc","TELE: Alg→Net",
-  "END: Park","END: Shallow","END: Deep",
+  "END: Park","END: Shallow","END: Deep", // checkboxes (mutually exclusive)
   "Fouls: Minor","Fouls: Major",
   "Notes",
   "AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"
@@ -564,60 +567,54 @@ function renderRawHeaders(){
   const tr = qs("#rawHead"); tr.innerHTML="";
   RAW_HEADERS.forEach(h=>{ const th=document.createElement("th"); th.textContent=h; tr.appendChild(th); });
 }
-function prefillRawFromSchedule(){
-  const keySet = new Set(state.raw.map(r => `${r.Match}|${r.Team}|${r.Alliance}`));
-  for (const r of state.scheduleExpanded){
-    const key = `${r.match}|${r.team}|${r.alliance}`;
-    if (!r.team || keySet.has(key)) continue;
-    state.raw.push({
-      Event:r.event, Match:r.match, Team:r.team, Alliance:r.alliance,
-      "AUTO: Leave":0,"AUTO: L1":0,"AUTO: L2":0,"AUTO: L3":0,"AUTO: L4":0,
-      "AUTO: Alg→Proc":0,"AUTO: Alg→Net":0,
-      "TELE: L1":0,"TELE: L2":0,"TELE: L3":0,"TELE: L4":0,
-      "TELE: Alg→Proc":0,"TELE: Alg→Net":0,
-      "END: Park":0,"END: Shallow":0,"END: Deep":0,
-      "Fouls: Minor":0,"Fouls: Major":0,
-      "Notes":"", "AUTO Pts":0,"TELE Pts":0,"END Pts":0,"TOTAL":0,"Opp Pts From Fouls":0
-    });
-    keySet.add(key);
-  }
+
+// Helpers: dropdown data from schedule
+function compOptions(){
+  return uniq(state.schedule.map(s=>s.comp)).filter(Boolean);
 }
-function renderRaw(){
-  const tb = qs("#rawTbl tbody"); tb.innerHTML="";
-  for (let i=0;i<state.raw.length;i++){
-    const row = state.raw[i];
-    const cells = [];
-
-    // NEW: Editable first four columns
-    cells.push(inputText(row.Event, v=>{row.Event=v; saveAll();}));
-    cells.push(inputNumber(row.Match, v=>{row.Match=asInt(v); computePointsForRow(row); saveAll();}));
-    cells.push(inputNumber(row.Team, v=>{row.Team=asInt(v); computePointsForRow(row); saveAll();}));
-    cells.push(selectInput(["","Red","Blue"], row.Alliance, v=>{row.Alliance=v; saveAll();}));
-
-    // Editable metric number inputs
-    const metricCols = RAW_HEADERS.slice(4, RAW_HEADERS.length-5);
-    metricCols.forEach(h=>{
-      cells.push(inputNumber(row[h], v=>{row[h]=asNum(v); computePointsForRow(row); saveAll();}));
-    });
-
-    // Notes (text)
-    cells.push(inputText(row["Notes"]||"", v=>{row["Notes"]=v; saveAll();}));
-
-    // Computed (read-only)
-    ["AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"].forEach(h=>{
-      cells.push(`<span class="mono">${Number(row[h]||0).toFixed(0)}</span>`);
-    });
-
-    tb.appendChild(mkRow(cells));
-  }
+function matchOptionsFor(comp){
+  return state.schedule.filter(s=>s.comp===comp).map(s=>s.match);
 }
-function inputText(value, on){ const i=document.createElement("input"); i.value=value??""; i.onchange=e=>on(e.target.value); return i; }
-function inputNumber(value, on){ const i=document.createElement("input"); i.type="number"; i.step="1"; i.value=(value==null||value==="")?"":Number(value); i.onchange=e=>on(e.target.value); return i; }
-function selectInput(opts, value, on){ const s=document.createElement("select"); opts.forEach(o=>{const op=document.createElement("option"); op.value=o; op.textContent=o; s.appendChild(op);}); s.value=value||""; s.onchange=e=>on(e.target.value); return s; }
+function teamOptionsFor(comp, match){
+  const s = state.schedule.find(x=>x.comp===comp && asInt(x.match)===asInt(match));
+  if(!s) return [];
+  return [...s.red, ...s.blue].filter(Boolean);
+}
+function allianceOf(comp, match, team){
+  const s = state.schedule.find(x=>x.comp===comp && asInt(x.match)===asInt(match));
+  if(!s) return "";
+  if (s.red.includes(asInt(team))) return "Red";
+  if (s.blue.includes(asInt(team))) return "Blue";
+  return "";
+}
 
-/* =========================
-   Points computation per row
-   ========================= */
+// Caps & clamping
+function clampCounts(row, changedKey){
+  const C = state.config.caps;
+  const pairClamp = (aKey, bKey, cap)=>{
+    let a = asInt(row[aKey]||0), b = asInt(row[bKey]||0);
+    if (a+b > cap){
+      if (changedKey === aKey) a = Math.max(0, cap - b);
+      else b = Math.max(0, cap - a);
+    }
+    row[aKey]=a; row[bKey]=b;
+  };
+  // Coral per level
+  pairClamp("AUTO: L1","TELE: L1", C.L1);
+  pairClamp("AUTO: L2","TELE: L2", C.L2);
+  pairClamp("AUTO: L3","TELE: L3", C.L3);
+  pairClamp("AUTO: L4","TELE: L4", C.L4);
+  // Algae targets
+  pairClamp("AUTO: Alg→Proc","TELE: Alg→Proc", C.AlgP);
+  pairClamp("AUTO: Alg→Net","TELE: Alg→Net", C.AlgN);
+}
+function exclusiveEndgame(row, picked){ // only one of Park/Shallow/Deep
+  if (picked==="END: Park"){ row["END: Shallow"]=0; row["END: Deep"]=0; }
+  if (picked==="END: Shallow"){ row["END: Park"]=0; row["END: Deep"]=0; }
+  if (picked==="END: Deep"){ row["END: Park"]=0; row["END: Shallow"]=0; }
+}
+
+// Points
 const RULE = {
   LEAVE: {auto:3, tele:0},
   L1: {auto:3, tele:2},
@@ -632,31 +629,133 @@ const RULE = {
 };
 function computePointsForRow(r){
   const n = k => asNum(r[k]||0);
-  const auto = n("AUTO: Leave")*RULE.LEAVE.auto
-             + n("AUTO: L1")*RULE.L1.auto
-             + n("AUTO: L2")*RULE.L2.auto
-             + n("AUTO: L3")*RULE.L3.auto
-             + n("AUTO: L4")*RULE.L4.auto
-             + n("AUTO: Alg→Proc")*RULE.ALG_PROC.auto
-             + n("AUTO: Alg→Net")*RULE.ALG_NET.auto;
-  const tele = n("TELE: L1")*RULE.L1.tele
-             + n("TELE: L2")*RULE.L2.tele
-             + n("TELE: L3")*RULE.L3.tele
-             + n("TELE: L4")*RULE.L4.tele
-             + n("TELE: Alg→Proc")*RULE.ALG_PROC.tele
-             + n("TELE: Alg→Net")*RULE.ALG_NET.tele;
-  const endp = n("END: Park")*RULE.PARK.tele
-             + n("END: Shallow")*RULE.CAGE_SH.tele
-             + n("END: Deep")*RULE.CAGE_DP.tele;
+  const auto = (r["AUTO Leave"]?1:0)*RULE.LEAVE.auto
+             + n("AUTO: L1")*RULE.L1.auto + n("AUTO: L2")*RULE.L2.auto + n("AUTO: L3")*RULE.L3.auto + n("AUTO: L4")*RULE.L4.auto
+             + n("AUTO: Alg→Proc")*RULE.ALG_PROC.auto + n("AUTO: Alg→Net")*RULE.ALG_NET.auto;
+  const tele = n("TELE: L1")*RULE.L1.tele + n("TELE: L2")*RULE.L2.tele + n("TELE: L3")*RULE.L3.tele + n("TELE: L4")*RULE.L4.tele
+             + n("TELE: Alg→Proc")*RULE.ALG_PROC.tele + n("TELE: Alg→Net")*RULE.ALG_NET.tele;
+  const endp = (r["END: Park"]?1:0)*RULE.PARK.tele
+             + (r["END: Shallow"]?1:0)*RULE.CAGE_SH.tele
+             + (r["END: Deep"]?1:0)*RULE.CAGE_DP.tele;
   r["AUTO Pts"]=auto; r["TELE Pts"]=tele; r["END Pts"]=endp;
   r["TOTAL"]=auto+tele+endp;
   r["Opp Pts From Fouls"] = 2*n("Fouls: Minor") + 6*n("Fouls: Major");
 }
-function recomputeAllPoints(){ state.raw.forEach(computePointsForRow); }
 
-/* =========================
-   Pit table
-   ========================= */
+// Inputs
+function inputText(value, on){ const i=document.createElement("input"); i.value=value??""; i.onchange=e=>on(e.target.value); return i; }
+function inputNum(value, on){ const i=document.createElement("input"); i.type="number"; i.step="1"; i.value=(value==null||value==="")?"":Number(value); i.onchange=e=>on(e.target.value); return i; }
+function inputCheckbox(checked, on){
+  const i=document.createElement("input"); i.type="checkbox"; i.checked=!!checked;
+  i.onchange=e=> on(e.target.checked?1:0); return i;
+}
+function selectInput(opts, value, on){ const s=document.createElement("select"); opts.forEach(o=>{const op=document.createElement("option"); op.value=o; op.textContent=o||"—"; s.appendChild(op);}); s.value=value||""; s.onchange=e=>on(e.target.value); return s; }
+
+// Render Raw table
+function renderRaw(){
+  const tb = qs("#rawTbl tbody"); tb.innerHTML="";
+
+  state.raw.forEach((row, idx)=>{
+    const cells=[];
+
+    // Event (read-only derived from schedule after match chosen; but let them override if needed)
+    cells.push(inputText(row.Event||"", v=>{row.Event=v; saveAll();}));
+
+    // Comp dropdown (from schedule)
+    const compOpts = compOptions();
+    cells.push(selectInput(["", ...compOpts], row.Comp||"", v=>{
+      row.Comp=v; row.Match=""; row.Team=""; row.Alliance=""; // reset downstream
+      saveAll(); renderRaw();
+    }));
+
+    // Match dropdown (based on comp)
+    const matchOpts = row.Comp ? matchOptionsFor(row.Comp) : [];
+    cells.push(selectInput(["", ...matchOpts], row.Match||"", v=>{
+      row.Match=asInt(v); row.Team=""; row.Alliance="";
+      // fill Event from the schedule row
+      const s = state.schedule.find(x=>x.comp===row.Comp && asInt(x.match)===row.Match);
+      if(s) row.Event = s.event;
+      saveAll(); renderRaw();
+    }));
+
+    // Team dropdown (based on comp+match)
+    const teamOpts = (row.Comp && row.Match) ? teamOptionsFor(row.Comp, row.Match) : [];
+    cells.push(selectInput(["", ...teamOpts], row.Team||"", v=>{
+      row.Team=asInt(v);
+      row.Alliance = allianceOf(row.Comp, row.Match, row.Team);
+      saveAll(); renderRaw();
+    }));
+
+    // Alliance (display, auto from team)
+    cells.push(`<span class="mono">${row.Alliance||""}</span>`);
+
+    // Checkboxes: Auto Leave
+    cells.push(inputCheckbox(row["AUTO Leave"], v=>{ row["AUTO Leave"]=v; computePointsForRow(row); saveAll(); renderRaw(); }));
+
+    // Numeric with caps: coral + algae (AUTO & TELE)
+    const cappedNum = (key)=> inputNum(row[key], v=>{
+      row[key]=asInt(v);
+      clampCounts(row, key);
+      computePointsForRow(row);
+      saveAll(); renderRaw();
+    });
+
+    ["AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
+     "AUTO: Alg→Proc","AUTO: Alg→Net",
+     "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
+     "TELE: Alg→Proc","TELE: Alg→Net"].forEach(k=> cells.push(cappedNum(k)));
+
+    // Endgame: three mutually exclusive checkboxes
+    const endBox = (k)=> inputCheckbox(row[k], v=>{
+      row[k]=v; if(v) exclusiveEndgame(row,k); computePointsForRow(row); saveAll(); renderRaw();
+    });
+    cells.push(endBox("END: Park"));
+    cells.push(endBox("END: Shallow"));
+    cells.push(endBox("END: Deep"));
+
+    // Fouls (numeric)
+    cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
+    cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
+
+    // Notes
+    cells.push(inputText(row["Notes"]||"", v=>{ row["Notes"]=v; saveAll(); }));
+
+    // Computed (read-only)
+    ["AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"].forEach(h=>{
+      cells.push(`<span class="mono">${Number(row[h]||0).toFixed(0)}</span>`);
+    });
+
+    tb.appendChild(mkRow(cells));
+  });
+}
+
+// Add Row
+qs("#addEmptyRow").onclick = ()=>{
+  const r = {};
+  RAW_HEADERS.forEach(h=>{
+    if (["AUTO Leave","END: Park","END: Shallow","END: Deep"].includes(h)) r[h]=0;
+    else r[h]="";
+  });
+  r["Comp"]=""; r["Match"]=""; r["Team"]=""; r["Alliance"]="";
+  r["Fouls: Minor"]=0; r["Fouls: Major"]=0;
+  r["AUTO: L1"]=0; r["AUTO: L2"]=0; r["AUTO: L3"]=0; r["AUTO: L4"]=0;
+  r["AUTO: Alg→Proc"]=0; r["AUTO: Alg→Net"]=0;
+  r["TELE: L1"]=0; r["TELE: L2"]=0; r["TELE: L3"]=0; r["TELE: L4"]=0;
+  r["TELE: Alg→Proc"]=0; r["TELE: Alg→Net"]=0;
+  r["AUTO Pts"]=0; r["TELE Pts"]=0; r["END Pts"]=0; r["TOTAL"]=0; r["Opp Pts From Fouls"]=0;
+  state.raw.push(r); saveAll(); renderRaw();
+};
+
+/* Pit scouting (unchanged from previous) */
+function reliabilityFactor(team){
+  const t = asInt(team);
+  const row = state.pit.find(x=>asInt(x.Team)===t);
+  if (!row) return 1;
+  const rel = asInt(row.Reliability||0);
+  const f = state.weights.relFloor, c = state.weights.relCeil;
+  if (!rel) return 1;
+  return f + (rel-1)*(c-f)/4;
+}
 function renderPit(){
   const tb = qs("#pitTbl tbody"); tb.innerHTML="";
   const optsDT = ["","Swerve","Tank","West Coast","Mecanum","Other"];
@@ -686,9 +785,7 @@ function renderPit(){
 }
 qs("#addPitRow").onclick = ()=>{ state.pit.push({Team:""}); renderPit(); saveAll(); };
 
-/* =========================
-   Averages (simple & weighted)
-   ========================= */
+/* Averages (same as before) */
 const AVG_HEADERS = [
   "Team","Matches",
   "AUTO Leave","AUTO L1","AUTO L2","AUTO L3","AUTO L4",
@@ -721,7 +818,7 @@ function computeSimpleAverages(){
     const matches = arr.length;
     rows.push({
       Team:team, Matches:matches,
-      "AUTO Leave":getA("AUTO: Leave"),
+      "AUTO Leave":getA("AUTO Leave"),
       "AUTO L1":getA("AUTO: L1"),"AUTO L2":getA("AUTO: L2"),"AUTO L3":getA("AUTO: L3"),"AUTO L4":getA("AUTO: L4"),
       "AUTO AlgProc":getA("AUTO: Alg→Proc"), "AUTO AlgNet":getA("AUTO: Alg→Net"),
       "TELE L1":getA("TELE: L1"),"TELE L2":getA("TELE: L2"),"TELE L3":getA("TELE: L3"),"TELE L4":getA("TELE: L4"),
@@ -748,7 +845,7 @@ function computeWeightedAverages(decay){
     };
     rows.push({
       Team:team, Matches:arr.length,
-      "AUTO Leave":wavg("AUTO: Leave"),
+      "AUTO Leave":wavg("AUTO Leave"),
       "AUTO L1":wavg("AUTO: L1"),"AUTO L2":wavg("AUTO: L2"),"AUTO L3":wavg("AUTO: L3"),"AUTO L4":wavg("AUTO: L4"),
       "AUTO AlgProc":wavg("AUTO: Alg→Proc"), "AUTO AlgNet":wavg("AUTO: Alg→Net"),
       "TELE L1":wavg("TELE: L1"),"TELE L2":wavg("TELE: L2"),"TELE L3":wavg("TELE: L3"),"TELE L4":wavg("TELE: L4"),
@@ -769,32 +866,8 @@ function renderTableFromObjects(tblId, rows, headers){
   });
 }
 
-/* =========================
-   Predictor (simple / weighted / custom)
-   ========================= */
-function reliabilityFactor(team){
-  const t = asInt(team);
-  const row = state.pit.find(x=>asInt(x.Team)===t);
-  if (!row) return 1;
-  const rel = asInt(row.Reliability||0);
-  const f = state.weights.relFloor, c = state.weights.relCeil;
-  if (!rel) return 1;
-  return f + (rel-1)*(c-f)/4;
-}
-function indexByTeam(rows){
-  const m = new Map();
-  rows.forEach(r => m.set(asInt(r.Team), r));
-  return m;
-}
-function pickTeamsFromMatch(){
-  const match = asInt(qs("#pickMatch").value);
-  if (!match) return;
-  const s = state.schedule.find(m => asInt(m.match)===match);
-  if (!s) return;
-  qs("#r1").value = s.red[0]||""; qs("#r2").value = s.red[1]||""; qs("#r3").value = s.red[2]||"";
-  qs("#b1").value = s.blue[0]||""; qs("#b2").value = s.blue[1]||""; qs("#b3").value = s.blue[2]||"";
-  computePredictions();
-}
+/* Predictor & Planner (unchanged except they read new fields) */
+function indexByTeam(rows){ const m = new Map(); rows.forEach(r => m.set(asInt(r.Team), r)); return m; }
 function fetchAllianceTeams(){
   const r = [qs("#r1").value, qs("#r2").value, qs("#r3").value].map(asInt).filter(Boolean);
   const b = [qs("#b1").value, qs("#b2").value, qs("#b3").value].map(asInt).filter(Boolean);
@@ -812,6 +885,9 @@ function coralLevelTotals(rowsIndex, teams){
     L4: sumField("AUTO L4")+sumField("TELE L4"),
   };
 }
+function reliabilityFactorForTeam(team){
+  return reliabilityFactor(team);
+}
 function computePredictions(){
   const {r,b} = fetchAllianceTeams();
   const simple = computeSimpleAverages(); const sm = indexByTeam(simple);
@@ -828,11 +904,11 @@ function computePredictions(){
     const T = asNum(m.get(team)?.["Avg TELE"]||0);
     const E = asNum(m.get(team)?.["Avg END"]||0);
     const F = asNum(m.get(team)?.["Avg FOUL to Opp"]||0);
-    const rf = reliabilityFactor(team);
+    const rf = reliabilityFactorForTeam(team);
     return (A*W.wAuto + T*W.wTele + E*W.wEnd - F*W.wFoul) * rf;
-    }
-  const rC = sum(r.map(t => customFor(t, sm)));
-  const bC = sum(b.map(t => customFor(t, sm)));
+  }
+  const rC = r.reduce((acc,t)=>acc+customFor(t, sm), 0);
+  const bC = b.reduce((acc,t)=>acc+customFor(t, sm), 0);
   qs("#predRedCustom").textContent = rC.toFixed(1);
   qs("#predBlueCustom").textContent = bC.toFixed(1);
 
@@ -853,9 +929,7 @@ function computePredictions(){
   qs("#rpCoop").textContent = (redProc>=2 && blueProc>=2) ? "Likely" : "Unlikely/Depends";
 }
 
-/* =========================
-   Planner (our matches, priority, gaps)
-   ========================= */
+/* Planner (unchanged) */
 function renderPlanner(){
   const our = asInt(state.config.ourTeam);
   const ours = state.scheduleExpanded.filter(r=>asInt(r.team)===our);
@@ -894,9 +968,7 @@ function renderPlanner(){
   }
 }
 
-/* =========================
-   Misc rendering helpers & exporters
-   ========================= */
+/* Misc */
 function renderSchedulePicklist(){
   const sel=qs("#pickMatch");
   const seen=new Set();
@@ -916,9 +988,9 @@ qs("#exportSchedule").onclick = ()=>{
   }));
   download("schedule.csv", toCSV(rows));
 };
-qs("#exportRaw").onclick = ()=>{ download("raw_data.csv", toCSV(state.raw)); };
-qs("#exportPit").onclick = ()=>{ download("pit_scouting.csv", toCSV(state.pit)); };
-qs("#exportJson").onclick = ()=>{ download("reefscape_scouter.json", JSON.stringify(state, null, 2)); };
+qs("#exportRaw").onclick = ()=> download("raw_data.csv", toCSV(state.raw));
+qs("#exportPit").onclick = ()=> download("pit_scouting.csv", toCSV(state.pit));
+qs("#exportJson").onclick = ()=> download("reefscape_scouter.json", JSON.stringify(state, null, 2));
 qs("#importFile").onchange = (e)=>{
   const f = e.target.files?.[0]; if(!f) return;
   const fr = new FileReader();
@@ -932,10 +1004,6 @@ qs("#importFile").onchange = (e)=>{
   fr.readAsText(f);
 };
 qs("#clearStorage").onclick = ()=>{ if(confirm("Clear localStorage & reset?")){ localStorage.removeItem(LS_KEY); location.reload(); } };
-
-/* =========================
-   Wire UI
-   ========================= */
 qs("#saveCfg").onclick = saveSettings;
 qs("#saveWeights").onclick = saveWeights;
 qs("#parseSchedule").onclick = ()=>{
@@ -947,23 +1015,22 @@ qs("#clearSchedule").onclick = ()=>{
   state.schedule = []; state.scheduleExpanded = [];
   renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); saveAll();
 };
-qs("#addEmptyRow").onclick = ()=>{
-  const r = {};
-  RAW_HEADERS.forEach(h=>r[h]="");
-  r["Alliance"]=""; r["AUTO Pts"]=0; r["TELE Pts"]=0; r["END Pts"]=0; r["TOTAL"]=0; r["Opp Pts From Fouls"]=0;
-  state.raw.push(r); renderRaw(); saveAll();
+qs("#recompute").onclick = ()=> recomputeEverything();
+qs("#pickMatch").onchange = ()=>{
+  const m = asInt(qs("#pickMatch").value);
+  if(!m) return;
+  const s = state.schedule.find(x=>x.comp?.toLowerCase().startsWith("qm") && asInt(x.match)===m);
+  if(!s) return;
+  qs("#r1").value=s.red[0]||""; qs("#r2").value=s.red[1]||""; qs("#r3").value=s.red[2]||"";
+  qs("#b1").value=s.blue[0]||""; qs("#b2").value=s.blue[1]||""; qs("#b3").value=s.blue[2]||"";
+  computePredictions();
 };
-qs("#recompute").onclick = ()=>{ recomputeEverything(); };
-qs("#pickMatch").onchange = pickTeamsFromMatch;
-["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=>{ qs(id).addEventListener("input", computePredictions); });
+["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=> qs(id).addEventListener("input", computePredictions));
 
-/* =========================
-   Main recompute
-   ========================= */
+/* Recompute */
 function recomputeEverything(){
-  recomputeAllPoints();
-  const simple = computeSimpleAverages();
-  renderTableFromObjects("avgTbl", simple, AVG_HEADERS);
+  state.raw.forEach(computePointsForRow);
+  const simple = computeSimpleAverages(); renderTableFromObjects("avgTbl", simple, AVG_HEADERS);
   const weighted = computeWeightedAverages(state.config.decay);
   renderTableFromObjects("wavgTbl", weighted, AVG_HEADERS.map(h=> h==="Avg TOTAL"?"Wgt TOTAL":h.replace("Avg ","Wgt ")));
   renderPlanner();
@@ -971,9 +1038,7 @@ function recomputeEverything(){
   saveAll();
 }
 
-/* =========================
-   Boot
-   ========================= */
+/* Boot */
 function boot(){
   loadAll();
   renderRules();
