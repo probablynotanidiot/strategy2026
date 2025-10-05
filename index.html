@@ -34,6 +34,7 @@
   .bad{color:#ffd1d1; border-color:#553232; background:#2a1717}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .scroll{max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px}
+  .hscroll{overflow-x:auto;} /* NEW: allow left-right scroll on small screens */
   .tight th,.tight td{padding:4px 6px}
   .grid{display:grid; gap:8px; grid-template-columns:repeat(4,minmax(0,1fr))}
   .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -41,12 +42,20 @@
   .footer{margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
   .help{font-size:12px; line-height:1.35}
   .nowrap{white-space:nowrap}
+
+  /* NEW: raw table wide + readable on phones */
+  #rawTbl{ min-width:1500px; }
+  #rawTbl thead th{ white-space:nowrap; }
+
+  /* Optional: 2-row sticky header offsets for Raw */
+  #rawTbl thead tr:first-child th{ top:0; z-index:3; }
+  #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
 </style>
 </head>
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste schedule → **manually add Raw rows** (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts for coral/algae → averages, predictor, planner. Data auto-saves locally.</p>
+<p class="muted help">Fetch/paste schedule → <b>manually add Raw rows</b> (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts for coral/algae → averages, predictor, planner. Data auto-saves locally.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -63,7 +72,7 @@
       </tbody>
     </table>
 
-    <h3>Per-Robot Max Caps (enforced per row) <!-- NEW --></h3>
+    <h3>Per-Robot Max Caps (enforced per row)</h3>
     <table class="tight">
       <tbody>
         <tr><th>Max Coral L1</th><td><input id="capL1" type="number" value="6"/></td></tr>
@@ -165,7 +174,7 @@
         <button id="clearSchedule" class="secondary">Clear</button>
         <button id="exportSchedule" class="ghost">Export CSV</button>
       </div>
-      <p class="muted help">After parsing or fetching, the app builds **Schedule** + **Expanded** (6 rows per match). Raw Data is **manual** now.</p>
+      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Expanded</b> (6 rows per match). Raw Data is <b>manual</b> now.</p>
     </div>
   </div>
   <div class="scroll" style="margin-top:10px">
@@ -195,12 +204,12 @@
 <!-- RAW DATA -->
 <section class="card">
   <h2>Raw Data (Manual)</h2>
-  <p class="help">Add rows → choose **Comp Level**, then **Match #** (from schedule), then **Team** (auto-sets Alliance). Tick checkboxes for boolean events; coral/algae counts are capped by Settings.</p>
+  <p class="help">Add rows → choose <b>Comp Level</b>, then <b>Match #</b> (from schedule), then <b>Team</b> (auto-sets Alliance). Tick checkboxes for boolean events; coral/algae counts are capped by Settings.</p>
   <div class="footer">
     <button id="addEmptyRow" class="ghost">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
   </div>
-  <div class="scroll">
+  <div class="scroll hscroll">
     <table id="rawTbl">
       <thead><tr id="rawHead"></tr></thead>
       <tbody></tbody>
@@ -330,7 +339,6 @@ const state = {
     ourTeam: "",
     decay: 0.85,
     maxMatches: 200,
-    // NEW: caps enforced per row
     caps: { L1:6, L2:6, L3:6, L4:6, AlgP:6, AlgN:6 },
     rp: { coralPerLevel:7, levels:4, levelsCoop:3, bargePts:16 }
   },
@@ -351,8 +359,7 @@ const state = {
   ],
   schedule: [],           // [{event,comp,set,match,time,red:[t1,t2,t3],blue:[t1,t2,t3]}]
   scheduleExpanded: [],   // computed: [{event,comp,set,match,time,alliance,team}]
-  // NEW: raw is manual only now
-  raw: [],
+  raw: [],                // manual rows
   pit: [],
   tba: { key: "", lastEventKey: "" }
 };
@@ -541,7 +548,6 @@ function renderSchedExpanded(){
 }
 function onScheduleUpdated(){
   expandSchedule();
-  // IMPORTANT: do NOT prefill raw anymore (manual flow)
   renderSchedule();
   renderSchedExpanded();
   renderSchedulePicklist();
@@ -550,22 +556,54 @@ function onScheduleUpdated(){
 }
 
 /* ======== RAW DATA (manual; dropdowns + caps + checkboxes) ======== */
-// Columns
+// Internal headers for data keys (not shown)
 const RAW_HEADERS = [
   "Event","Comp","Match","Team","Alliance",
-  "AUTO Leave",                // checkbox
+  "AUTO Leave",
   "AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
   "AUTO: Alg→Proc","AUTO: Alg→Net",
   "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
   "TELE: Alg→Proc","TELE: Alg→Net",
-  "END: Park","END: Shallow","END: Deep", // checkboxes (mutually exclusive)
+  "END: Park","END: Shallow","END: Deep",
   "Fouls: Minor","Fouls: Major",
   "Notes",
   "AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"
 ];
+
+// NEW: two-row header with category bands
 function renderRawHeaders(){
-  const tr = qs("#rawHead"); tr.innerHTML="";
-  RAW_HEADERS.forEach(h=>{ const th=document.createElement("th"); th.textContent=h; tr.appendChild(th); });
+  const thead = document.querySelector("#rawTbl thead");
+  thead.innerHTML = "";
+
+  const cat = document.createElement("tr");
+  [
+    ["",5],                     // Event, Comp, Match, Team, Alliance
+    ["AUTO",7],                 // Leave + L1-4 + AlgProc + AlgNet
+    ["TELEOP",6],               // L1-4 + AlgProc + AlgNet
+    ["ENDGAME",3],              // Park/Shallow/Deep
+    ["FOULS",2],                // Minor/Major
+    ["NOTES",1],                // Notes
+    ["POINTS",5]                // Auto/Tele/End/Total/OppFouls
+  ].forEach(([label,span])=>{
+    const th=document.createElement("th");
+    th.textContent = label;
+    th.colSpan = span;
+    cat.appendChild(th);
+  });
+  thead.appendChild(cat);
+
+  const detail = document.createElement("tr");
+  const cols = [
+    "Event","Comp","Match","Team","Alliance",
+    "Leave (Auto)","L1 Auto","L2 Auto","L3 Auto","L4 Auto","Alg→Proc Auto","Alg→Net Auto",
+    "L1 Tele","L2 Tele","L3 Tele","L4 Tele","Alg→Proc Tele","Alg→Net Tele",
+    "Park","Shallow","Deep",
+    "Minor","Major",
+    "Notes",
+    "Auto Pts","Tele Pts","End Pts","Total","Opp Pts (Fouls)"
+  ];
+  cols.forEach(h=>{ const th=document.createElement("th"); th.textContent=h; detail.appendChild(th); });
+  thead.appendChild(detail);
 }
 
 // Helpers: dropdown data from schedule
@@ -599,16 +637,14 @@ function clampCounts(row, changedKey){
     }
     row[aKey]=a; row[bKey]=b;
   };
-  // Coral per level
   pairClamp("AUTO: L1","TELE: L1", C.L1);
   pairClamp("AUTO: L2","TELE: L2", C.L2);
   pairClamp("AUTO: L3","TELE: L3", C.L3);
   pairClamp("AUTO: L4","TELE: L4", C.L4);
-  // Algae targets
   pairClamp("AUTO: Alg→Proc","TELE: Alg→Proc", C.AlgP);
   pairClamp("AUTO: Alg→Net","TELE: Alg→Net", C.AlgN);
 }
-function exclusiveEndgame(row, picked){ // only one of Park/Shallow/Deep
+function exclusiveEndgame(row, picked){
   if (picked==="END: Park"){ row["END: Shallow"]=0; row["END: Deep"]=0; }
   if (picked==="END: Shallow"){ row["END: Park"]=0; row["END: Deep"]=0; }
   if (picked==="END: Deep"){ row["END: Park"]=0; row["END: Shallow"]=0; }
@@ -651,20 +687,20 @@ function inputCheckbox(checked, on){
 }
 function selectInput(opts, value, on){ const s=document.createElement("select"); opts.forEach(o=>{const op=document.createElement("option"); op.value=o; op.textContent=o||"—"; s.appendChild(op);}); s.value=value||""; s.onchange=e=>on(e.target.value); return s; }
 
-// Render Raw table
+// Render Raw table body
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
 
   state.raw.forEach((row, idx)=>{
     const cells=[];
 
-    // Event (read-only derived from schedule after match chosen; but let them override if needed)
+    // Event free text (filled from schedule after match selected but editable)
     cells.push(inputText(row.Event||"", v=>{row.Event=v; saveAll();}));
 
     // Comp dropdown (from schedule)
     const compOpts = compOptions();
     cells.push(selectInput(["", ...compOpts], row.Comp||"", v=>{
-      row.Comp=v; row.Match=""; row.Team=""; row.Alliance=""; // reset downstream
+      row.Comp=v; row.Match=""; row.Team=""; row.Alliance="";
       saveAll(); renderRaw();
     }));
 
@@ -672,7 +708,6 @@ function renderRaw(){
     const matchOpts = row.Comp ? matchOptionsFor(row.Comp) : [];
     cells.push(selectInput(["", ...matchOpts], row.Match||"", v=>{
       row.Match=asInt(v); row.Team=""; row.Alliance="";
-      // fill Event from the schedule row
       const s = state.schedule.find(x=>x.comp===row.Comp && asInt(x.match)===row.Match);
       if(s) row.Event = s.event;
       saveAll(); renderRaw();
@@ -682,22 +717,18 @@ function renderRaw(){
     const teamOpts = (row.Comp && row.Match) ? teamOptionsFor(row.Comp, row.Match) : [];
     cells.push(selectInput(["", ...teamOpts], row.Team||"", v=>{
       row.Team=asInt(v);
-      row.Alliance = allianceOf(row.Comp, row.Match, row.Team);
+      row.Alliance = allianceOf(row.Comp, row.Match, row.Team); // NEW: autoset alliance
       saveAll(); renderRaw();
     }));
 
-    // Alliance (display, auto from team)
+    // Alliance display
     cells.push(`<span class="mono">${row.Alliance||""}</span>`);
 
-    // Checkboxes: Auto Leave
+    // Checkboxes & numbers with caps
     cells.push(inputCheckbox(row["AUTO Leave"], v=>{ row["AUTO Leave"]=v; computePointsForRow(row); saveAll(); renderRaw(); }));
 
-    // Numeric with caps: coral + algae (AUTO & TELE)
     const cappedNum = (key)=> inputNum(row[key], v=>{
-      row[key]=asInt(v);
-      clampCounts(row, key);
-      computePointsForRow(row);
-      saveAll(); renderRaw();
+      row[key]=asInt(v); clampCounts(row, key); computePointsForRow(row); saveAll(); renderRaw();
     });
 
     ["AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
@@ -705,7 +736,6 @@ function renderRaw(){
      "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
      "TELE: Alg→Proc","TELE: Alg→Net"].forEach(k=> cells.push(cappedNum(k)));
 
-    // Endgame: three mutually exclusive checkboxes
     const endBox = (k)=> inputCheckbox(row[k], v=>{
       row[k]=v; if(v) exclusiveEndgame(row,k); computePointsForRow(row); saveAll(); renderRaw();
     });
@@ -713,14 +743,11 @@ function renderRaw(){
     cells.push(endBox("END: Shallow"));
     cells.push(endBox("END: Deep"));
 
-    // Fouls (numeric)
     cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
     cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
 
-    // Notes
     cells.push(inputText(row["Notes"]||"", v=>{ row["Notes"]=v; saveAll(); }));
 
-    // Computed (read-only)
     ["AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"].forEach(h=>{
       cells.push(`<span class="mono">${Number(row[h]||0).toFixed(0)}</span>`);
     });
@@ -729,7 +756,7 @@ function renderRaw(){
   });
 }
 
-// Add Row
+// Add Row (exactly one per click)
 qs("#addEmptyRow").onclick = ()=>{
   const r = {};
   RAW_HEADERS.forEach(h=>{
@@ -746,7 +773,7 @@ qs("#addEmptyRow").onclick = ()=>{
   state.raw.push(r); saveAll(); renderRaw();
 };
 
-/* Pit scouting (unchanged from previous) */
+/* Pit scouting */
 function reliabilityFactor(team){
   const t = asInt(team);
   const row = state.pit.find(x=>asInt(x.Team)===t);
@@ -785,7 +812,7 @@ function renderPit(){
 }
 qs("#addPitRow").onclick = ()=>{ state.pit.push({Team:""}); renderPit(); saveAll(); };
 
-/* Averages (same as before) */
+/* Averages */
 const AVG_HEADERS = [
   "Team","Matches",
   "AUTO Leave","AUTO L1","AUTO L2","AUTO L3","AUTO L4",
@@ -866,7 +893,7 @@ function renderTableFromObjects(tblId, rows, headers){
   });
 }
 
-/* Predictor & Planner (unchanged except they read new fields) */
+/* Predictor & Planner */
 function indexByTeam(rows){ const m = new Map(); rows.forEach(r => m.set(asInt(r.Team), r)); return m; }
 function fetchAllianceTeams(){
   const r = [qs("#r1").value, qs("#r2").value, qs("#r3").value].map(asInt).filter(Boolean);
@@ -906,7 +933,7 @@ function computePredictions(){
     const F = asNum(m.get(team)?.["Avg FOUL to Opp"]||0);
     const rf = reliabilityFactorForTeam(team);
     return (A*W.wAuto + T*W.wTele + E*W.wEnd - F*W.wFoul) * rf;
-  }
+    }
   const rC = r.reduce((acc,t)=>acc+customFor(t, sm), 0);
   const bC = b.reduce((acc,t)=>acc+customFor(t, sm), 0);
   qs("#predRedCustom").textContent = rC.toFixed(1);
@@ -929,7 +956,7 @@ function computePredictions(){
   qs("#rpCoop").textContent = (redProc>=2 && blueProc>=2) ? "Likely" : "Unlikely/Depends";
 }
 
-/* Planner (unchanged) */
+/* Planner */
 function renderPlanner(){
   const our = asInt(state.config.ourTeam);
   const ours = state.scheduleExpanded.filter(r=>asInt(r.team)===our);
@@ -1043,7 +1070,7 @@ function boot(){
   loadAll();
   renderRules();
   bindSettings();
-  renderRawHeaders();
+  renderRawHeaders();       // NEW headers
   renderPit();
   renderSchedule();
   renderSchedExpanded();
