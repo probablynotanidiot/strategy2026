@@ -591,9 +591,45 @@ function renderRawHeaders(){
   const thead = document.querySelector("#rawTbl thead");
   thead.innerHTML = "";
 
-  function renderRawHeadersAndBody(){
+  const cat = document.createElement("tr");
+  [
+    ["",5],
+    ["AUTO",7],
+    ["TELEOP",6],
+    ["ENDGAME",3],
+    ["FOULS",2],
+    ["NOTES",1],
+    ["POINTS",5]
+  ].forEach(([label,span])=>{
+    const th=document.createElement("th");
+    th.textContent = label;
+    th.colSpan = span;
+    cat.appendChild(th);
+  });
+  thead.appendChild(cat);
+
+  const detail = document.createElement("tr");
+  const cols = [
+    "Event","Comp","Match","Team","Alliance",
+    "Leave (Auto)","L1 Auto","L2 Auto","L3 Auto","L4 Auto","Alg→Proc Auto","Alg→Net Auto",
+    "L1 Tele","L2 Tele","L3 Tele","L4 Tele","Alg→Proc Tele","Alg→Net Tele",
+    "Park","Shallow","Deep",
+    "Minor","Major",
+    "Notes",
+    "Auto Pts","Tele Pts","End Pts","Total","Opp Pts (Fouls)"
+  ];
+  cols.forEach(h=>{
+    const th=document.createElement("th");
+    th.textContent=h;
+    detail.appendChild(th);
+  });
+  thead.appendChild(detail);
+}
+
+// IMPORTANT: call ensureRawColgroup() here, between header & body render
+function renderRawHeadersAndBody(){
   renderRawHeaders();
-  ensureRawColgroup();   // <-- add this line
+  ensureRawColgroup();   // <- this is what actually applies your widths
   renderRaw();
 }
 
@@ -771,6 +807,9 @@ function selectElem(options, val, onChange, placeholder="—", disabled=false){
 function renderRawHeadersAndBody(){
   renderRawHeaders();
   renderRaw();
+  // On load or whenever you need a full rebuild:
+renderRawHeadersAndBody();
+
 }
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
