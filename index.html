@@ -9,7 +9,7 @@
     --bg:#0b0f14; --card:#111722; --muted:#98a2b3; --text:#e6edf3; --accent:#2e7dd7; --accent2:#00b894; --warn:#ffd166;
     --border:#1f2a3a;
   }
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans"; 
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans";
        background:var(--bg); color:var(--text); margin:0; padding:24px;}
   h1,h2{margin:12px 0 8px}
   small, .muted{color:var(--muted)}
@@ -34,7 +34,7 @@
   .bad{color:#ffd1d1; border-color:#553232; background:#2a1717}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   .scroll{max-height:360px; overflow:auto; border:1px solid var(--border); border-radius:10px}
-  .hscroll{overflow-x:auto;} /* NEW: allow left-right scroll on small screens */
+  .hscroll{overflow-x:auto;} /* horizontal scroll for small screens */
   .tight th,.tight td{padding:4px 6px}
   .grid{display:grid; gap:8px; grid-template-columns:repeat(4,minmax(0,1fr))}
   .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -43,11 +43,11 @@
   .help{font-size:12px; line-height:1.35}
   .nowrap{white-space:nowrap}
 
-  /* NEW: raw table wide + readable on phones */
+  /* Raw table: wide + readable on phones */
   #rawTbl{ min-width:1500px; }
   #rawTbl thead th{ white-space:nowrap; }
 
-  /* Optional: 2-row sticky header offsets for Raw */
+  /* Sticky two-row header for Raw */
   #rawTbl thead tr:first-child th{ top:0; z-index:3; }
   #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
 </style>
@@ -55,7 +55,7 @@
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste schedule → <b>manually add Raw rows</b> (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts for coral/algae → averages, predictor, planner. Data auto-saves locally.</p>
+<p class="muted help">Fetch/paste schedule → <b>manually add Raw rows</b> (Comp/Match/Team dropdowns) → checkboxes for boolean actions, capped counts across Auto+Tele → averages, predictor, planner. Data saves to your browser.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -204,7 +204,7 @@
 <!-- RAW DATA -->
 <section class="card">
   <h2>Raw Data (Manual)</h2>
-  <p class="help">Add rows → choose <b>Comp Level</b>, then <b>Match #</b> (from schedule), then <b>Team</b> (auto-sets Alliance). Tick checkboxes for boolean events; coral/algae counts are capped by Settings.</p>
+  <p class="help">Add rows → choose <b>Comp Level</b>, then <b>Match #</b> (from schedule), then <b>Team</b> (Alliance auto-sets). Checkboxes for booleans; coral/algae counts are capped across Auto+Tele by Settings.</p>
   <div class="footer">
     <button id="addEmptyRow" class="ghost">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
@@ -507,10 +507,9 @@ function parseScheduleText(txt){
   const rows = txt.trim().split(/\r?\n/).filter(Boolean);
   const out = [];
   for (const line of rows){
+    // CSV-aware split fallback to TSV/whitespace
     let parts = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(s=>s.replace(/^"(.*)"$/,'$1').trim());
-    if (parts.length < 11){
-      parts = line.split(/\t|\s{2,}/).map(s=>s.trim());
-    }
+    if (parts.length < 11){ parts = line.split(/\t|\s{2,}/).map(s=>s.trim()); }
     if (parts.length < 11) continue;
     const [event,comp,set,match,time, r1,r2,r3, b1,b2,b3] = parts;
     out.push({
@@ -556,7 +555,7 @@ function onScheduleUpdated(){
 }
 
 /* ======== RAW DATA (manual; dropdowns + caps + checkboxes) ======== */
-// Internal headers for data keys (not shown)
+// Data keys (internal)
 const RAW_HEADERS = [
   "Event","Comp","Match","Team","Alliance",
   "AUTO Leave",
@@ -570,7 +569,7 @@ const RAW_HEADERS = [
   "AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"
 ];
 
-// NEW: two-row header with category bands
+// Two-row header with category bands
 function renderRawHeaders(){
   const thead = document.querySelector("#rawTbl thead");
   thead.innerHTML = "";
@@ -626,7 +625,7 @@ function allianceOf(comp, match, team){
   return "";
 }
 
-// Caps & clamping
+// Caps & clamping across Auto+Tele for each category
 function clampCounts(row, changedKey){
   const C = state.config.caps;
   const pairClamp = (aKey, bKey, cap)=>{
@@ -644,13 +643,14 @@ function clampCounts(row, changedKey){
   pairClamp("AUTO: Alg→Proc","TELE: Alg→Proc", C.AlgP);
   pairClamp("AUTO: Alg→Net","TELE: Alg→Net", C.AlgN);
 }
+// Endgame exclusivity
 function exclusiveEndgame(row, picked){
   if (picked==="END: Park"){ row["END: Shallow"]=0; row["END: Deep"]=0; }
   if (picked==="END: Shallow"){ row["END: Park"]=0; row["END: Deep"]=0; }
   if (picked==="END: Deep"){ row["END: Park"]=0; row["END: Shallow"]=0; }
 }
 
-// Points
+// Points rules
 const RULE = {
   LEAVE: {auto:3, tele:0},
   L1: {auto:3, tele:2},
@@ -691,20 +691,20 @@ function selectInput(opts, value, on){ const s=document.createElement("select");
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
 
-  state.raw.forEach((row, idx)=>{
+  state.raw.forEach((row)=>{
     const cells=[];
 
-    // Event free text (filled from schedule after match selected but editable)
+    // Event free text (pulled from schedule once match chosen; still editable)
     cells.push(inputText(row.Event||"", v=>{row.Event=v; saveAll();}));
 
-    // Comp dropdown (from schedule)
+    // Comp dropdown
     const compOpts = compOptions();
     cells.push(selectInput(["", ...compOpts], row.Comp||"", v=>{
       row.Comp=v; row.Match=""; row.Team=""; row.Alliance="";
       saveAll(); renderRaw();
     }));
 
-    // Match dropdown (based on comp)
+    // Match dropdown (depends on Comp)
     const matchOpts = row.Comp ? matchOptionsFor(row.Comp) : [];
     cells.push(selectInput(["", ...matchOpts], row.Match||"", v=>{
       row.Match=asInt(v); row.Team=""; row.Alliance="";
@@ -713,20 +713,21 @@ function renderRaw(){
       saveAll(); renderRaw();
     }));
 
-    // Team dropdown (based on comp+match)
+    // Team dropdown (depends on Comp+Match)
     const teamOpts = (row.Comp && row.Match) ? teamOptionsFor(row.Comp, row.Match) : [];
     cells.push(selectInput(["", ...teamOpts], row.Team||"", v=>{
       row.Team=asInt(v);
-      row.Alliance = allianceOf(row.Comp, row.Match, row.Team); // NEW: autoset alliance
+      row.Alliance = allianceOf(row.Comp, row.Match, row.Team); // auto-set Alliance
       saveAll(); renderRaw();
     }));
 
-    // Alliance display
+    // Alliance display (computed)
     cells.push(`<span class="mono">${row.Alliance||""}</span>`);
 
-    // Checkboxes & numbers with caps
+    // Booleans as checkboxes
     cells.push(inputCheckbox(row["AUTO Leave"], v=>{ row["AUTO Leave"]=v; computePointsForRow(row); saveAll(); renderRaw(); }));
 
+    // Counted fields with caps across Auto+Tele
     const cappedNum = (key)=> inputNum(row[key], v=>{
       row[key]=asInt(v); clampCounts(row, key); computePointsForRow(row); saveAll(); renderRaw();
     });
@@ -736,6 +737,7 @@ function renderRaw(){
      "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
      "TELE: Alg→Proc","TELE: Alg→Net"].forEach(k=> cells.push(cappedNum(k)));
 
+    // Endgame (mutually exclusive) as checkboxes
     const endBox = (k)=> inputCheckbox(row[k], v=>{
       row[k]=v; if(v) exclusiveEndgame(row,k); computePointsForRow(row); saveAll(); renderRaw();
     });
@@ -743,11 +745,14 @@ function renderRaw(){
     cells.push(endBox("END: Shallow"));
     cells.push(endBox("END: Deep"));
 
+    // Fouls numeric
     cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
     cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
 
+    // Notes
     cells.push(inputText(row["Notes"]||"", v=>{ row["Notes"]=v; saveAll(); }));
 
+    // Computed points (read-only)
     ["AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"].forEach(h=>{
       cells.push(`<span class="mono">${Number(row[h]||0).toFixed(0)}</span>`);
     });
@@ -756,7 +761,7 @@ function renderRaw(){
   });
 }
 
-// Add Row (exactly one per click)
+// Add Row (one per click)
 qs("#addEmptyRow").onclick = ()=>{
   const r = {};
   RAW_HEADERS.forEach(h=>{
@@ -912,9 +917,7 @@ function coralLevelTotals(rowsIndex, teams){
     L4: sumField("AUTO L4")+sumField("TELE L4"),
   };
 }
-function reliabilityFactorForTeam(team){
-  return reliabilityFactor(team);
-}
+function reliabilityFactorForTeam(team){ return reliabilityFactor(team); }
 function computePredictions(){
   const {r,b} = fetchAllianceTeams();
   const simple = computeSimpleAverages(); const sm = indexByTeam(simple);
@@ -933,12 +936,13 @@ function computePredictions(){
     const F = asNum(m.get(team)?.["Avg FOUL to Opp"]||0);
     const rf = reliabilityFactorForTeam(team);
     return (A*W.wAuto + T*W.wTele + E*W.wEnd - F*W.wFoul) * rf;
-    }
+  }
   const rC = r.reduce((acc,t)=>acc+customFor(t, sm), 0);
   const bC = b.reduce((acc,t)=>acc+customFor(t, sm), 0);
   qs("#predRedCustom").textContent = rC.toFixed(1);
   qs("#predBlueCustom").textContent = bC.toFixed(1);
 
+  // RP heuristics
   const leaveSum = sumTeams(sm, r, "AUTO Leave");
   const autoCoralAny = (sumTeams(sm, r, "AUTO L1")+sumTeams(sm, r, "AUTO L2")
                       +sumTeams(sm, r, "AUTO L3")+sumTeams(sm, r, "AUTO L4")) > 0 ? "Yes" : "No";
@@ -1070,7 +1074,7 @@ function boot(){
   loadAll();
   renderRules();
   bindSettings();
-  renderRawHeaders();       // NEW headers
+  renderRawHeaders();       // category headers (sticky)
   renderPit();
   renderSchedule();
   renderSchedExpanded();
