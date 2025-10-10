@@ -617,6 +617,7 @@ function renderRawHeaders(){
   const thead = document.querySelector("#rawTbl thead");
   thead.innerHTML = "";
 
+  // Category row
   const cat = document.createElement("tr");
   [
     ["",5],
@@ -634,6 +635,7 @@ function renderRawHeaders(){
   });
   thead.appendChild(cat);
 
+  // Detail row
   const detail = document.createElement("tr");
   const cols = [
     "Event","Comp","Match","Team","Alliance",
@@ -644,7 +646,11 @@ function renderRawHeaders(){
     "Notes",
     "Auto Pts","Tele Pts","End Pts","Total","Opp Pts (Fouls)"
   ];
-  cols.forEach(h=>{ const th=document.createElement("th"); th.textContent=h; detail.appendChild(th); });
+  cols.forEach(h=>{
+    const th=document.createElement("th");
+    th.textContent=h;
+    detail.appendChild(th);
+  });
   thead.appendChild(detail);
 }
 
@@ -673,6 +679,96 @@ function ensureRawColgroup(){
 }
 
 // Helpers to feed dropdowns
+
+function onClick(id, fn){
+  const el = document.querySelector(id);
+  if (el) el.onclick = fn;
+}
+function onChange(id, fn){
+  const el = document.querySelector(id);
+  if (el) el.onchange = fn;
+}
+function onInput(id, fn){
+  const el = document.querySelector(id);
+  if (el) el.addEventListener("input", fn);
+}
+
+// ---- Bind all controls here ----
+function initBindings(){
+  onClick("#saveCfg", saveSettings);
+  onClick("#saveWeights", saveWeights);
+
+  onClick("#saveTBAKey", ()=>{ state.tba.key = qs("#tbaKey").value.trim(); saveAll(); alert("Saved TBA key to this browser."); });
+  onClick("#fetchFromTBA", fetchFromTBA);
+  onClick("#importTBAJson", ()=> qs("#importTBAFile").click());
+  onChange("#importTBAFile", async (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    try{
+      const json = JSON.parse(await f.text());
+      const eventKey = qs("#tbaEventKey").value.trim();
+      const matchFilter = asInt(qs("#tbaMatchFilter").value);
+      let data = Array.isArray(json)? json : [];
+      if(matchFilter>0) data = data.filter(m => asInt(m.match_number)===matchFilter);
+      state.schedule = normalizeFromTBA(data, eventKey);
+      onScheduleUpdated();
+    }catch{ alert("Invalid JSON."); }
+  });
+
+  onClick("#parseSchedule", ()=>{
+    const txt = qs("#schedulePaste").value;
+    state.schedule = parseScheduleText(txt);
+    onScheduleUpdated();
+  });
+  onClick("#clearSchedule", ()=>{
+    state.schedule = []; state.scheduleExpanded = [];
+    renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderPlanner(); renderRaw(); saveAll();
+  });
+  onClick("#exportSchedule", ()=> {
+    const rows = state.schedule.map(m => ({
+      Event:m.event, CompLevel:m.comp, Set:m.set, Match:m.match, Time:m.time,
+      Red1:m.red[0], Red2:m.red[1], Red3:m.red[2], Blue1:m.blue[0], Blue2:m.blue[1], Blue3:m.blue[2]
+    }));
+    download("schedule.csv", toCSV(rows));
+  });
+
+  onClick("#exportJson", ()=> download("reefscape_scouter.json", JSON.stringify(state, null, 2)));
+  onChange("#importFile", (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const fr = new FileReader();
+    fr.onload = ()=>{
+      try{
+        const obj = JSON.parse(fr.result);
+        Object.assign(state, obj);
+        saveAll(); boot();
+      }catch(err){ alert("Invalid JSON"); }
+    };
+    fr.readAsText(f);
+  });
+  onClick("#clearStorage", ()=>{ if(confirm("Clear localStorage & reset?")){ localStorage.removeItem(LS_KEY); location.reload(); } });
+
+  onClick("#addRawRow", ()=>{ state.raw.push(newManualRawRow()); renderRaw(); saveAll(); });
+  onClick("#exportRaw", ()=> download("raw_data.csv", toCSV(state.raw)));
+
+  onClick("#addPitRow", ()=>{ state.pit.push({Team:""}); renderPit(); saveAll(); });
+  onClick("#exportPit", ()=> download("pit_scouting.csv", toCSV(state.pit)));
+
+  onClick("#recompute", recomputeEverything);
+
+  onChange("#pickMatch", ()=>{
+    const m = asInt(qs("#pickMatch").value);
+    if(!m) return;
+    const s = state.schedule.find(x=>x.comp?.toLowerCase().startsWith("qm") && asInt(x.match)===m);
+    if(!s) return;
+    qs("#r1").value=s.red[0]||""; qs("#r2").value=s.red[1]||""; qs("#r3").value=s.red[2]||"";
+    qs("#b1").value=s.blue[0]||""; qs("#b2").value=s.blue[1]||""; qs("#b3").value=s.blue[2]||"";
+    computePredictions();
+  });
+  ["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=> onInput(id, computePredictions));
+
+  // If you added a print button for paper sheets:
+  onClick("#printSheets", openPrintSheets);
+}
+
 function getCompLevels(){
   return uniq(state.schedule.map(s => (s.comp||"").toString())).sort((a,b)=>a.localeCompare(b));
 }
@@ -1401,17 +1497,23 @@ function boot(){
   loadAll();
   renderRules();
   bindSettings();
+
   renderSchedExpanded();
   renderSchedule();
   renderSchedulePicklist();
+
   renderAvgHeaders();
   renderPit();
-  renderRawHeadersAndBody();
+
+  // Raw table (headers + widths + body)
+  renderRawHeaders();
+  ensureRawColgroup();   // apply col widths after table exists
+  renderRaw();
+
+  initBindings();        // wire all buttons after UI is present
   recomputeEverything();
-  // Wire print button after render
-  const btn = document.getElementById("printSheets");
-  if (btn) btn.onclick = openPrintSheets;
 }
+
 boot();
 </script>
 </body>
