@@ -417,11 +417,16 @@ function loadAll(){
 
 /* Utils */
 const qs = sel => document.querySelector(sel);
-function csvEscape(v){ if(v==null) return ""; v = String(v); return /[,"\n]/.test(v) ? \`"\${v.replace(/"/g,'""')}"\` : v; }
+function csvEscape(v){
+  if (v == null) return "";
+  v = String(v);
+  return /[,"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v;
+}
+
 function toCSV(rows){
   if(!rows.length) return "";
   const keys = Object.keys(rows[0]);
-  return [keys.join(","), ...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(","))].join("\\n");
+  return [keys.join(","), ...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(","))].join("\n");
 }
 function download(filename, text){
   const a = document.createElement("a");
@@ -521,7 +526,7 @@ async function fetchFromTBA(){
   try{
     const url = `https://www.thebluealliance.com/api/v3/event/${encodeURIComponent(eventKey)}/matches/simple`;
     const res = await fetch(url, { headers: { "X-TBA-Auth-Key": key }});
-    if(!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
     let data = await res.json();
     if(matchFilter>0) data = data.filter(m => asInt(m.match_number)===matchFilter);
     state.schedule = normalizeFromTBA(data, eventKey);
@@ -1099,12 +1104,14 @@ function computeWeightedAverages(decay){
   return rows;
 }
 function renderTableFromObjects(tblId, rows, headers){
-  const tb = qs(\`#\${tblId} tbody\`); tb.innerHTML="";
+  const tb = qs(`#${tblId} tbody`);  // <-- backticks without backslashes
+  tb.innerHTML = "";
   rows.forEach(r=>{
     const cols = headers.map(h => (h in r) ? (typeof r[h]==="number" ? r[h].toFixed(2) : r[h]) : "");
     tb.appendChild(mkRow(cols));
   });
 }
+
 
 /* Predictor & Planner */
 function indexByTeam(rows){ const m = new Map(); rows.forEach(r => m.set(asInt(r.Team), r)); return m; }
