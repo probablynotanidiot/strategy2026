@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>FRC REEFSCAPE 2025 Scouting (with TBA Fetch)</title>
+<title>FRC REEFSCAPE 2025 Scouting (with TBA Fetch + Paper OCR)</title>
 <style>
   :root{
     --bg:#0b0f14; --card:#111722; --muted:#98a2b3; --text:#e6edf3; --accent:#2e7dd7; --accent2:#00b894; --warn:#ffd166;
@@ -20,9 +20,10 @@
   th, td{border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top}
   tbody tr:hover{background:#0b1220}
   input[type="number"], input[type="text"], input[type="password"], select, textarea{
-    width:100%; box-sizing:border-box; padding:6px 8px; background:#0d1420; color:var(--text);
-    border:1px solid var(--border); border-radius:8px; font-size:13px;
+    width:100%; box-sizing:border-box; padding:10px 10px; background:#0d1420; color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-size:16px; line-height:1.25;
   }
+  input[type="number"]{ min-width: 96px; }
   input[type="checkbox"]{transform:scale(1.2); cursor:pointer}
   textarea{min-height:84px}
   button{background:var(--accent); border:none; color:#fff; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600}
@@ -43,35 +44,27 @@
   .help{font-size:12px; line-height:1.35}
   .nowrap{white-space:nowrap}
 
-  /* ===== Raw table readability upgrades ===== */
-  #rawTbl{
-    table-layout: fixed;       /* make colgroup widths take effect */
-    min-width: 1900px;         /* more room overall */
+  /* Big, easy-to-read Raw inputs */
+  #rawTbl input[type="number"], #rawTbl input[type="text"], #rawTbl select {
+    font-size: 16px; padding: 8px 10px; min-height: 38px;
   }
-  #rawTbl th, #rawTbl td{
-    padding: 8px 10px;         /* taller rows for readability */
-  }
-  #rawTbl input[type="number"],
-  #rawTbl input[type="text"],
-  #rawTbl select,
-  #rawTbl .mono{
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    font-size: 14px;           /* larger numbers */
-    line-height: 1.3;
-    padding: 8px 10px;
-  }
-
+  #rawTbl input[type="number"] { min-width: 88px; }
   #rawTbl thead th{ white-space:nowrap; }
+  #rawTbl{ min-width:1500px; }
   #rawTbl thead tr:first-child th{ top:0; z-index:3; }
   #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
+
+  /* Camera area */
+  #cameraWrap{ display:none; gap:10px; align-items:flex-start; }
+  #cameraWrap.active{ display:flex; }
+  #camera{ width:320px; max-width:100%; border:1px solid var(--border); border-radius:8px; }
+  #snapshot{ display:none; }
 </style>
 </head>
 <body>
 
-<h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste schedule → build your own <b>Raw Data</b> rows from selectors (Comp → Match → Team) → alliance autofills, checkboxes & caps → averages, predictor, planner. Data saves to your browser.</p>
+<h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch + Paper OCR</h1>
+<p class="muted help">New: sheet printer + camera scan. Also caps now match 2025: L2/L3/L4 ≤ 12, L1 unlimited; algae total ≤ 9. All numeric fields are non-negative.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -80,33 +73,32 @@
     <table class="tight">
       <tbody>
         <tr><th style="width:45%">Our Team</th>
-          <td><input id="ourTeam" type="number" placeholder="e.g., 1234" /></td></tr>
+          <td><input id="ourTeam" type="number" placeholder="e.g., 1234" min="0"/></td></tr>
         <tr><th>Decay Factor (weighted avg)</th>
           <td><input id="decay" type="number" step="0.01" min="0" max="1" value="0.85"/></td></tr>
         <tr><th>Max Matches in Schedule</th>
-          <td><input id="maxMatches" type="number" value="200"/></td></tr>
+          <td><input id="maxMatches" type="number" value="200" min="1"/></td></tr>
       </tbody>
     </table>
 
-    <h3>Per-Robot Max Caps (enforced per row)</h3>
+    <h3>Per-Robot Max Caps</h3>
     <table class="tight">
       <tbody>
-        <tr><th>Max Coral L1</th><td><input id="capL1" type="number" value="6"/></td></tr>
-        <tr><th>Max Coral L2</th><td><input id="capL2" type="number" value="6"/></td></tr>
-        <tr><th>Max Coral L3</th><td><input id="capL3" type="number" value="6"/></td></tr>
-        <tr><th>Max Coral L4</th><td><input id="capL4" type="number" value="6"/></td></tr>
-        <tr><th>Max Algae → Processor</th><td><input id="capAlgP" type="number" value="6"/></td></tr>
-        <tr><th>Max Algae → Net</th><td><input id="capAlgN" type="number" value="6"/></td></tr>
+        <tr><th>Coral L1</th><td><input id="capL1" type="text" value="∞" disabled/></td></tr>
+        <tr><th>Coral L2</th><td><input id="capL2" type="number" value="12" min="0"/></td></tr>
+        <tr><th>Coral L3</th><td><input id="capL3" type="number" value="12" min="0"/></td></tr>
+        <tr><th>Coral L4</th><td><input id="capL4" type="number" value="12" min="0"/></td></tr>
+        <tr><th>Algae (total across all)</th><td><input id="capAlgTotal" type="number" value="9" min="0"/></td></tr>
       </tbody>
     </table>
 
     <h3>RP Thresholds</h3>
     <table class="tight">
       <tbody>
-        <tr><th>Coral per Level</th><td><input id="rpCoralPerLevel" type="number" value="7"/></td></tr>
-        <tr><th>Levels Required (no Coop)</th><td><input id="rpLevels" type="number" value="4"/></td></tr>
-        <tr><th>Levels Required (with Coop)</th><td><input id="rpLevelsCoop" type="number" value="3"/></td></tr>
-        <tr><th>Barge RP Points</th><td><input id="rpBargePts" type="number" value="16"/></td></tr>
+        <tr><th>Coral per Level</th><td><input id="rpCoralPerLevel" type="number" value="7" min="0"/></td></tr>
+        <tr><th>Levels Required (no Coop)</th><td><input id="rpLevels" type="number" value="4" min="0"/></td></tr>
+        <tr><th>Levels Required (with Coop)</th><td><input id="rpLevelsCoop" type="number" value="3" min="0"/></td></tr>
+        <tr><th>Barge RP Points</th><td><input id="rpBargePts" type="number" value="16" min="0"/></td></tr>
       </tbody>
     </table>
 
@@ -190,7 +182,7 @@
         <button id="clearSchedule" class="secondary">Clear</button>
         <button id="exportSchedule" class="ghost">Export CSV</button>
       </div>
-      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Schedule Expanded</b>. Raw Data is now manual: add your own rows using the dropdowns.</p>
+      <p class="muted help">After parsing or fetching, the app builds <b>Schedule</b> + <b>Schedule Expanded</b>. Raw Data is manual: add rows using dropdowns.</p>
     </div>
   </div>
   <div class="scroll" style="margin-top:10px">
@@ -220,7 +212,7 @@
 <!-- RAW DATA (manual; schedule-driven selectors) -->
 <section class="card">
   <h2>Raw Data (Manual; use dropdowns fed by Schedule)</h2>
-  <p class="help">Click <b>Add Row</b> to create a scouting row. Pick <i>Comp</i> → <i>Match</i> → <i>Team</i>. Alliance and Event auto-fill. Booleans are checkboxes; counts are capped across Auto+Tele.</p>
+  <p class="help">Add rows, pick <i>Comp</i> → <i>Match</i> → <i>Team</i>. Alliance/Event auto-fill. Booleans are checkboxes; counts capped per rules. (No negatives.)</p>
   <div class="footer">
     <button id="addRawRow">Add Row</button>
     <button id="exportRaw" class="ghost">Export CSV</button>
@@ -231,6 +223,32 @@
       <tbody></tbody>
     </table>
   </div>
+</section>
+
+<!-- PAPER SHEET + CAMERA OCR -->
+<section class="card">
+  <h2>Paper Scout Sheet & Camera Scan</h2>
+  <p class="help">Print blank sheets (KEY: value). Scouters write numbers/✓. Use the camera to scan and auto-add a row. Tip: write CLEARLY in block digits.</p>
+  <div class="footer">
+    <button id="printSheet">Print Scout Sheet</button>
+    <button id="openCam">Scan Sheet</button>
+    <button id="closeCam" class="secondary">Close Camera</button>
+  </div>
+
+  <div id="cameraWrap" class="">
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="snapshot" width="640" height="480"></canvas>
+    <div>
+      <div class="footer">
+        <button id="snapAndOCR">Capture & OCR</button>
+      </div>
+      <p class="muted help mono" id="ocrStatus">Status: idle</p>
+      <div class="scroll" style="max-height:200px">
+        <pre class="mono" id="ocrRaw"></pre>
+      </div>
+    </div>
+  </div>
+  <small class="muted">OCR by <span class="mono">Tesseract.js</span> (requires JS to load; if offline, you can upload a photo via your browser’s file input and paste text into Notes).</small>
 </section>
 
 <!-- PIT SCOUTING -->
@@ -289,9 +307,9 @@
             <select id="pickMatch"><option value="">—</option></select>
           </td></tr>
         <tr><th>or enter teams (Red)</th>
-          <td class="grid-3"><input id="r1" type="number" placeholder="Red1"/><input id="r2" type="number" placeholder="Red2"/><input id="r3" type="number" placeholder="Red3"/></td></tr>
+          <td class="grid-3"><input id="r1" type="number" placeholder="Red1" min="0"/><input id="r2" type="number" placeholder="Red2" min="0"/><input id="r3" type="number" placeholder="Red3" min="0"/></td></tr>
         <tr><th>enter teams (Blue)</th>
-          <td class="grid-3"><input id="b1" type="number" placeholder="Blue1"/><input id="b2" type="number" placeholder="Blue2"/><input id="b3" type="number" placeholder="Blue3"/></td></tr>
+          <td class="grid-3"><input id="b1" type="number" placeholder="Blue1" min="0"/><input id="b2" type="number" placeholder="Blue2" min="0"/><input id="b3" type="number" placeholder="Blue3" min="0"/></td></tr>
       </tbody>
     </table>
     <table>
@@ -364,6 +382,9 @@
   </div>
 </section>
 
+<!-- Tesseract (OCR) -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
 <script>
 /* =========================
    Data model & persistence
@@ -373,7 +394,8 @@ const state = {
     ourTeam: "",
     decay: 0.85,
     maxMatches: 200,
-    caps: { L1:6, L2:6, L3:6, L4:6, AlgP:6, AlgN:6 },
+    // Caps: L1 is unlimited, model as Infinity; L2/L3/L4 = 12; Algae total = 9
+    caps: { L1: Infinity, L2:12, L3:12, L4:12, AlgTotal:9 },
     rp: { coralPerLevel:7, levels:4, levelsCoop:3, bargePts:16 }
   },
   weights: { wAuto:1, wTele:1, wEnd:1, wFoul:1, relFloor:0.8, relCeil:1.2 },
@@ -393,7 +415,7 @@ const state = {
   ],
   schedule: [],           // [{event,comp,set,match,time,red:[...],blue:[...]}]
   scheduleExpanded: [],   // [{event,comp,set,match,time,alliance,team}]
-  raw: [],                // manual rows now
+  raw: [],                // manual rows
   pit: [],
   tba: { key: "", lastEventKey: "" }
 };
@@ -424,6 +446,7 @@ function sum(arr){ return arr.reduce((a,b)=>a+(+b||0),0); }
 function avg(arr){ const v=arr.filter(x=>x!=="" && x!=null); return v.length? sum(v)/v.length : 0; }
 function asInt(v){ const n = parseInt(v,10); return isFinite(n)? n : 0; }
 function asNum(v){ const n = Number(v); return isFinite(n)? n : 0; }
+function clamp0(n){ n = asInt(n); return n < 0 ? 0 : n; }
 function mkRow(cols){ const tr=document.createElement("tr"); cols.forEach(c=>{ const td=document.createElement("td"); if(c instanceof Node){ td.appendChild(c);} else {td.innerHTML=c;} tr.appendChild(td); }); return tr; }
 
 /* Render rules & settings */
@@ -436,12 +459,12 @@ function bindSettings(){
   qs("#decay").value = state.config.decay;
   qs("#maxMatches").value = state.config.maxMatches;
 
-  qs("#capL1").value = state.config.caps.L1;
+  // Show caps (L1 = ∞, disabled)
+  qs("#capL1").value = "∞";
   qs("#capL2").value = state.config.caps.L2;
   qs("#capL3").value = state.config.caps.L3;
   qs("#capL4").value = state.config.caps.L4;
-  qs("#capAlgP").value = state.config.caps.AlgP;
-  qs("#capAlgN").value = state.config.caps.AlgN;
+  qs("#capAlgTotal").value = state.config.caps.AlgTotal;
 
   qs("#rpCoralPerLevel").value = state.config.rp.coralPerLevel;
   qs("#rpLevels").value = state.config.rp.levels;
@@ -461,19 +484,18 @@ function bindSettings(){
 function saveSettings(){
   state.config.ourTeam = qs("#ourTeam").value.trim();
   state.config.decay = asNum(qs("#decay").value);
-  state.config.maxMatches = asInt(qs("#maxMatches").value);
+  state.config.maxMatches = Math.max(1, asInt(qs("#maxMatches").value));
 
-  state.config.caps.L1 = asInt(qs("#capL1").value);
-  state.config.caps.L2 = asInt(qs("#capL2").value);
-  state.config.caps.L3 = asInt(qs("#capL3").value);
-  state.config.caps.L4 = asInt(qs("#capL4").value);
-  state.config.caps.AlgP = asInt(qs("#capAlgP").value);
-  state.config.caps.AlgN = asInt(qs("#capAlgN").value);
+  // L1 fixed infinite
+  state.config.caps.L2 = Math.max(0, asInt(qs("#capL2").value));
+  state.config.caps.L3 = Math.max(0, asInt(qs("#capL3").value));
+  state.config.caps.L4 = Math.max(0, asInt(qs("#capL4").value));
+  state.config.caps.AlgTotal = Math.max(0, asInt(qs("#capAlgTotal").value));
 
-  state.config.rp.coralPerLevel = asInt(qs("#rpCoralPerLevel").value);
-  state.config.rp.levels = asInt(qs("#rpLevels").value);
-  state.config.rp.levelsCoop = asInt(qs("#rpLevelsCoop").value);
-  state.config.rp.bargePts = asInt(qs("#rpBargePts").value);
+  state.config.rp.coralPerLevel = Math.max(0, asInt(qs("#rpCoralPerLevel").value));
+  state.config.rp.levels = Math.max(0, asInt(qs("#rpLevels").value));
+  state.config.rp.levelsCoop = Math.max(0, asInt(qs("#rpLevelsCoop").value));
+  state.config.rp.bargePts = Math.max(0, asInt(qs("#rpBargePts").value));
   saveAll(); recomputeEverything();
 }
 function saveWeights(){
@@ -585,7 +607,6 @@ function onScheduleUpdated(){
   renderSchedExpanded();
   renderSchedulePicklist();
   renderPlanner();
-  // DO NOT auto-create raw rows anymore; keep user-entered rows
   renderRaw();            // refresh dropdown options
   recomputeEverything();
   saveAll();
@@ -640,42 +661,10 @@ function renderRawHeaders(){
   thead.appendChild(detail);
 }
 
-function ensureRawColgroup(){
-  const tbl = document.getElementById('rawTbl');
-  if (!tbl) return;
+/* Width helper if you want to force column widths, optional:
+function ensureRawColgroup(){ ... } */
 
-  // Remove previous widths if any
-  let cg = tbl.querySelector('colgroup');
-  if (cg) cg.remove();
-
-  // Widths in the exact order your Raw Data columns render:
-  // [Event, Comp, Match, Team, Alliance,
-  //  AUTO Leave, AUTO L1, L2, L3, L4, Alg→Proc, Alg→Net,
-  //  TELE L1, L2, L3, L4, Alg→Proc, Alg→Net,
-  //  END Park, Shallow, Deep,
-  //  Fouls Minor, Major,
-  //  Notes,
-  //  Auto Pts, Tele Pts, End Pts, Total, Opp Pts (Fouls)]
-  const widths = [
-    140, 120, 120, 200, 100,   // Team now roomy (200px)
-    110,  90,  90,  90,  90, 110, 110,
-     90,  90,  90,  90, 110, 110,
-     90, 110, 110,
-    120, 120,
-    260,
-    100, 100, 100, 110, 130
-  ];
-
-  cg = document.createElement('colgroup');
-  widths.forEach(w => {
-    const c = document.createElement('col');
-    c.style.width = w + 'px';
-    cg.appendChild(c);
-  });
-  tbl.insertBefore(cg, tbl.firstChild);
-}
-
-// Helpers to feed dropdowns
+/* Dropdown feed helpers */
 function getCompLevels(){
   return uniq(state.schedule.map(s => (s.comp||"").toString())).sort((a,b)=>a.localeCompare(b));
 }
@@ -692,7 +681,7 @@ function getTeamsFor(comp, match){
   return { red, blue, all:[...red, ...blue] };
 }
 
-// Create a blank manual row
+/* New manual row */
 function newManualRawRow(){
   const r = {};
   RAW_HEADERS.forEach(h=>{
@@ -709,23 +698,40 @@ function newManualRawRow(){
   return r;
 }
 
-// Caps & clamping across Auto+Tele
+/* Clamp logic to enforce game limits & non-negatives */
 function clampCounts(row, changedKey){
   const C = state.config.caps;
+  // Helper to clamp two fields against a cap, keeping non-negative
   const pairClamp = (aKey, bKey, cap)=>{
-    let a = asInt(row[aKey]||0), b = asInt(row[bKey]||0);
-    if (a+b > cap){
+    let a = clamp0(row[aKey]||0), b = clamp0(row[bKey]||0);
+    if (isFinite(cap) && a+b > cap){
       if (changedKey === aKey) a = Math.max(0, cap - b);
       else b = Math.max(0, cap - a);
     }
     row[aKey]=a; row[bKey]=b;
   };
-  pairClamp("AUTO: L1","TELE: L1", C.L1);
+
+  // Coral: L1 unlimited, skip; L2-L4 cap 12 across Auto+Tele
   pairClamp("AUTO: L2","TELE: L2", C.L2);
   pairClamp("AUTO: L3","TELE: L3", C.L3);
   pairClamp("AUTO: L4","TELE: L4", C.L4);
-  pairClamp("AUTO: Alg→Proc","TELE: Alg→Proc", C.AlgP);
-  pairClamp("AUTO: Alg→Net","TELE: Alg→Net", C.AlgN);
+  // Ensure L1 non-negative only
+  row["AUTO: L1"] = clamp0(row["AUTO: L1"]);
+  row["TELE: L1"] = clamp0(row["TELE: L1"]);
+
+  // Algae total (across ALL fields) ≤ AlgTotal
+  const aKeys = ["AUTO: Alg→Proc","AUTO: Alg→Net","TELE: Alg→Proc","TELE: Alg→Net"];
+  const others = aKeys.filter(k=>k!==changedKey);
+  const sumOthers = sum(others.map(k=> clamp0(row[k]||0)));
+  let changed = clamp0(row[changedKey]||0);
+  const capLeft = Math.max(0, C.AlgTotal - sumOthers);
+  if (changed > capLeft) changed = capLeft;
+  row[changedKey] = changed;
+
+  // Also ensure other algae fields are non-negative (if changed something unrelated)
+  aKeys.forEach(k => row[k] = clamp0(row[k]||0));
+
+  // Endgame booleans exclusivity handled elsewhere
 }
 // Endgame exclusivity
 function exclusiveEndgame(row, picked){
@@ -748,7 +754,7 @@ const RULE = {
   CAGE_DP: {auto:0, tele:12}
 };
 function computePointsForRow(r){
-  const n = k => asNum(r[k]||0);
+  const n = k => Math.max(0, asNum(r[k]||0));
   const auto = (r["AUTO Leave"]?1:0)*RULE.LEAVE.auto
              + n("AUTO: L1")*RULE.L1.auto + n("AUTO: L2")*RULE.L2.auto + n("AUTO: L3")*RULE.L3.auto + n("AUTO: L4")*RULE.L4.auto
              + n("AUTO: Alg→Proc")*RULE.ALG_PROC.auto + n("AUTO: Alg→Net")*RULE.ALG_NET.auto;
@@ -764,7 +770,12 @@ function computePointsForRow(r){
 
 // Inputs
 function inputText(value, on){ const i=document.createElement("input"); i.value=value??""; i.onchange=e=>on(e.target.value); return i; }
-function inputNum(value, on){ const i=document.createElement("input"); i.type="number"; i.step="1"; i.value=(value==null||value==="")?"":Number(value); i.onchange=e=>on(e.target.value); return i; }
+function inputNum(value, on){
+  const i=document.createElement("input"); i.type="number"; i.step="1"; i.min="0";
+  i.value=(value==null||value==="")?"":Math.max(0, Number(value));
+  i.onchange=e=>on(e.target.value);
+  return i;
+}
 function inputCheckbox(checked, on){
   const i=document.createElement("input"); i.type="checkbox"; i.checked=!!checked;
   i.onchange=e=> on(e.target.checked?1:0); return i;
@@ -772,7 +783,7 @@ function inputCheckbox(checked, on){
 function selectElem(options, val, onChange, placeholder="—", disabled=false){
   const s=document.createElement("select");
   if (placeholder!=null){ const o=document.createElement("option"); o.value=""; o.textContent=placeholder; s.appendChild(o); }
-  options.forEach(v=>{ const o=document.createElement("option"); o.value=String(v); o.textContent=String(v).toUpperCase?String(v).toUpperCase():String(v); s.appendChild(o); });
+  options.forEach(v=>{ const o=document.createElement("option"); o.value=String(v); o.textContent=String(v); s.appendChild(o); });
   s.value = val||"";
   s.disabled = disabled;
   s.onchange = e=> onChange(e.target.value);
@@ -782,7 +793,6 @@ function selectElem(options, val, onChange, placeholder="—", disabled=false){
 // Render Raw table (manual rows)
 function renderRawHeadersAndBody(){
   renderRawHeaders();
-  ensureRawColgroup();   // ensure widths get applied before body
   renderRaw();
 }
 function renderRaw(){
@@ -815,7 +825,7 @@ function renderRaw(){
       row.Event = s?.event || "";
       computePointsForRow(row); saveAll(); renderRaw();
     }, "match", !row.Comp);
-    // Prepend Event text
+    // Prepend Event before comp in table order as first cell
     cells.unshift(`<span class="mono">${eventText}</span>`);
     cells.push(matchSel);
 
@@ -838,9 +848,11 @@ function renderRaw(){
     // Booleans as checkboxes
     cells.push(inputCheckbox(row["AUTO Leave"], v=>{ row["AUTO Leave"]=v; computePointsForRow(row); saveAll(); renderRaw(); }));
 
-    // Counted fields with caps across Auto+Tele
+    // Counted fields with caps across Auto+Tele and algae total
     const cappedNum = (key)=> inputNum(row[key], v=>{
-      row[key]=asInt(v); clampCounts(row, key); computePointsForRow(row); saveAll(); renderRaw();
+      row[key]=clamp0(v);
+      clampCounts(row, key);
+      computePointsForRow(row); saveAll(); renderRaw();
     });
 
     ["AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
@@ -856,9 +868,9 @@ function renderRaw(){
     cells.push(endBox("END: Shallow"));
     cells.push(endBox("END: Deep"));
 
-    // Fouls numeric
-    cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
-    cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
+    // Fouls numeric (non-negative)
+    cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=clamp0(v); computePointsForRow(row); saveAll(); renderRaw(); }));
+    cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=clamp0(v); computePointsForRow(row); saveAll(); renderRaw(); }));
 
     // Notes
     cells.push(inputText(row["Notes"]||"", v=>{ row["Notes"]=v; saveAll(); }));
@@ -993,7 +1005,7 @@ function renderTableFromObjects(tblId, rows, headers){
   });
 }
 
-/* Predictor & Planner */
+/* Predictor & Planner (unchanged) */
 function indexByTeam(rows){ const m = new Map(); rows.forEach(r => m.set(asInt(r.Team), r)); return m; }
 function fetchAllianceTeams(){
   const r = [qs("#r1").value, qs("#r2").value, qs("#r3").value].map(asInt).filter(Boolean);
@@ -1031,7 +1043,7 @@ function computePredictions(){
     const F = asNum(m.get(team)?.["Avg FOUL to Opp"]||0);
     const rf = reliabilityFactorForTeam(team);
     return (A*W.wAuto + T*W.wTele + E*W.wEnd - F*W.wFoul) * rf;
-    }
+  }
   const rC = r.reduce((acc,t)=>acc+customFor(t, sm), 0);
   const bC = b.reduce((acc,t)=>acc+customFor(t, sm), 0);
   qs("#predRedCustom").textContent = rC.toFixed(1);
@@ -1055,7 +1067,7 @@ function computePredictions(){
   qs("#rpCoop").textContent = (redProc>=2 && blueProc>=2) ? "Likely" : "Unlikely/Depends";
 }
 
-/* Planner */
+/* Planner (unchanged, includes other matches to scout) */
 function renderPlanner(){
   const our = asInt(state.config.ourTeam);
   const ours = state.scheduleExpanded.filter(r=>asInt(r.team)===our);
@@ -1073,7 +1085,7 @@ function renderPlanner(){
     tb.appendChild(mkRow([m, ourAlliance, partners, opps, time]));
   }
 
-  // Priority teams we face + first shared match + scouted rows count
+  // Priority we face
   const teamsWeFace = uniq(
     ourMatches.flatMap(m => state.scheduleExpanded.filter(r=>asInt(r.match)===m && asInt(r.team)!==our).map(r=>asInt(r.team)))
   ).sort((a,b)=>a-b);
@@ -1099,7 +1111,7 @@ function renderPlanner(){
     tb3.appendChild(mkRow([m, opps[0]||"", opps[1]||"", opps[2]||"", gapCell]));
   }
 
-  // OTHER MATCHES TO SCOUT
+  // OTHER matches to scout (QM→SF→F)
   (function buildOtherMatchesToScout(){
     const tb = qs("#otherMatchesTbl tbody"); if (!tb) return;
     tb.innerHTML = "";
@@ -1115,14 +1127,13 @@ function renderPlanner(){
         if (r.alliance !== ourRow.alliance) opponentsSet.add(asInt(r.team));
       }
     }
-
     const hi = (t) => opponentsSet.has(asInt(t))
       ? `<span class="pill bad mono">${t}</span>`
       : `<span class="mono">${t}</span>`;
 
     const candidates = [];
     for (const s of state.schedule) {
-      if (ourMatchSet.has(asInt(s.match))) continue; // skip our matches
+      if (ourMatchSet.has(asInt(s.match))) continue;
       const allTeams = [...s.red, ...s.blue].map(asInt);
       const important = allTeams.filter(t => opponentsSet.has(t));
       if (important.length === 0) continue;
@@ -1148,7 +1159,6 @@ function renderPlanner(){
       if (a.set !== b.set) return a.set - b.set;
       return a.match - b.match;
     });
-
     for (const c of candidates) {
       const label = `${(c.comp||"").toUpperCase()} ${c.match}`;
       tb.appendChild(mkRow([label, c.teamsCell, c.importantCell, String(c.count), c.time]));
@@ -1216,13 +1226,210 @@ qs("#pickMatch").onchange = ()=>{
 
 /* Recompute */
 function recomputeEverything(){
-  state.raw.forEach(computePointsForRow);
+  state.raw.forEach(r=>{
+    // sanitize negatives just in case
+    ["AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
+     "AUTO: Alg→Proc","AUTO: Alg→Net",
+     "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
+     "TELE: Alg→Proc","TELE: Alg→Net",
+     "Fouls: Minor","Fouls: Major"].forEach(k=> r[k]=clamp0(r[k]));
+    clampCounts(r, "AUTO: L1"); // trigger algae clamp path
+    computePointsForRow(r);
+  });
   const simple = computeSimpleAverages(); renderTableFromObjects("avgTbl", simple, AVG_HEADERS);
   const weighted = computeWeightedAverages(state.config.decay);
   renderTableFromObjects("wavgTbl", weighted, AVG_HEADERS.map(h=> h==="Avg TOTAL"?"Wgt TOTAL":h.replace("Avg ","Wgt ")));
   renderPlanner();
   computePredictions();
   saveAll();
+}
+
+/* ===== Paper Sheet (print) ===== */
+qs("#printSheet").onclick = ()=>{
+  const w = window.open("", "_blank");
+  const html = `
+  <html><head><title>Scout Sheet</title>
+    <style>
+      body{font-family:ui-sans-serif,system-ui; padding:16px;}
+      .hdr{display:flex; gap:10px; margin-bottom:10px}
+      .cell{border:1px solid #000; padding:6px 8px; min-width:140px}
+      .grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+      .sec{margin-top:12px}
+      .big{font-size:20px}
+      .line{border-bottom:1px dashed #444; min-height:26px}
+      .mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </head><body>
+    <h2>REEFSCAPE 2025 — Scout Sheet</h2>
+    <div class="hdr">
+      <div class="cell">Event: ________</div>
+      <div class="cell">Comp (QM/SF/F): ________</div>
+      <div class="cell">Match #: ________</div>
+      <div class="cell">Team #: ________</div>
+      <div class="cell">Alliance (R/B): ________</div>
+      <div class="cell">Scout: ________</div>
+    </div>
+
+    <div class="sec">
+      <h3>AUTO</h3>
+      <div class="grid">
+        <div class="cell">AUTO Leave (✓/0/1): ________</div>
+        <div class="cell">AUTO L1: ________</div>
+        <div class="cell">AUTO L2: ________</div>
+        <div class="cell">AUTO L3: ________</div>
+        <div class="cell">AUTO L4: ________</div>
+        <div class="cell">AUTO Alg→Proc: ________</div>
+        <div class="cell">AUTO Alg→Net: ________</div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>TELEOP</h3>
+      <div class="grid">
+        <div class="cell">TELE L1: ________</div>
+        <div class="cell">TELE L2: ________</div>
+        <div class="cell">TELE L3: ________</div>
+        <div class="cell">TELE L4: ________</div>
+        <div class="cell">TELE Alg→Proc: ________</div>
+        <div class="cell">TELE Alg→Net: ________</div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>ENDGAME</h3>
+      <div class="grid">
+        <div class="cell">Park (0/1): ________</div>
+        <div class="cell">Shallow (0/1): ________</div>
+        <div class="cell">Deep (0/1): ________</div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>FOULS</h3>
+      <div class="grid">
+        <div class="cell">Minor Fouls: ________</div>
+        <div class="cell">Major Fouls: ________</div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>NOTES</h3>
+      <div class="cell" style="min-height:120px"></div>
+    </div>
+    <p class="mono">Write as: KEY: value. Example: "AUTO L2: 3", "Deep: 1". Algae total ≤ 9. Coral L2/L3/L4 ≤ 12 each.</p>
+    <script>window.onload=()=>window.print()</script>
+  </body></html>`;
+  w.document.write(html); w.document.close();
+};
+
+/* ===== Camera & OCR ===== */
+let stream = null;
+qs("#openCam").onclick = async ()=>{
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
+    const v = qs("#camera"); v.srcObject = stream;
+    qs("#cameraWrap").classList.add("active");
+  }catch(e){ alert("Camera access failed: "+e.message); }
+};
+qs("#closeCam").onclick = ()=>{
+  if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  qs("#cameraWrap").classList.remove("active");
+};
+qs("#snapAndOCR").onclick = async ()=>{
+  const v = qs("#camera");
+  if (!v.srcObject){ alert("Open camera first."); return; }
+  // capture
+  const c = qs("#snapshot");
+  c.width = v.videoWidth || 640;
+  c.height = v.videoHeight || 480;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(v,0,0,c.width,c.height);
+  qs("#ocrStatus").textContent = "Status: running OCR…";
+  try{
+    const dataURL = c.toDataURL("image/png");
+    const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', { logger: m=> (qs("#ocrStatus").textContent = "Status: "+m.status) });
+    qs("#ocrRaw").textContent = text;
+    const parsed = parseOcrTextToRow(text);
+    if (!parsed) { alert("Could not find any key:value pairs. Make sure the sheet uses KEY: value lines."); return; }
+    // Add a row and merge parsed values:
+    const row = newManualRawRow();
+    Object.assign(row, parsed);
+    // If schedule is present, alliance auto-fills on team selection (user can adjust Comp/Match/Team via dropdowns)
+    state.raw.push(row);
+    renderRaw(); saveAll(); recomputeEverything();
+    alert("OCR parsed and added a new Raw Data row. Please verify fields.");
+  }catch(e){
+    alert("OCR failed: "+e.message);
+  }finally{
+    qs("#ocrStatus").textContent = "Status: idle";
+  }
+};
+
+// Very simple KEY: value parser matching our field names (case-insensitive, flexible spacing)
+function parseOcrTextToRow(text){
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  const row = {};
+  const map = [
+    ["Event","^event"],
+    ["Comp","^(comp|comp ?level|level)"],
+    ["Match","^match"],
+    ["Team","^team"],
+    ["Alliance","^alliance"],
+    ["AUTO Leave","^(auto\\s*leave|leave)"],
+    ["AUTO: L1","^(auto\\s*l1|auto\\s*level\\s*1)"],
+    ["AUTO: L2","^(auto\\s*l2|auto\\s*level\\s*2)"],
+    ["AUTO: L3","^(auto\\s*l3|auto\\s*level\\s*3)"],
+    ["AUTO: L4","^(auto\\s*l4|auto\\s*level\\s*4)"],
+    ["AUTO: Alg→Proc","^(auto.*(proc|processor))"],
+    ["AUTO: Alg→Net","^(auto.*net)"],
+    ["TELE: L1","^(tele.*l1|tele.*level\\s*1)"],
+    ["TELE: L2","^(tele.*l2|tele.*level\\s*2)"],
+    ["TELE: L3","^(tele.*l3|tele.*level\\s*3)"],
+    ["TELE: L4","^(tele.*l4|tele.*level\\s*4)"],
+    ["TELE: Alg→Proc","^(tele.*(proc|processor))"],
+    ["TELE: Alg→Net","^(tele.*net)"],
+    ["END: Park","^(park)"],
+    ["END: Shallow","^(shallow)"],
+    ["END: Deep","^(deep)"],
+    ["Fouls: Minor","^(minor)"],
+    ["Fouls: Major","^(major)"],
+    ["Notes","^(notes?)"]
+  ];
+  const toNum = (v)=> {
+    const n = parseInt(String(v).replace(/[^\d-]/g,''),10);
+    return isFinite(n) ? Math.max(0,n) : 0;
+  };
+  for (const ln of lines){
+    const m = ln.match(/^([^:]+):\s*(.+)$/);
+    if (!m) continue;
+    const keyRaw = m[1].toLowerCase().trim();
+    const val = m[2].trim();
+    for (const [std, rx] of map){
+      if (new RegExp(rx,"i").test(keyRaw)){
+        if (["END: Park","END: Shallow","END: Deep","AUTO Leave"].includes(std)){
+          row[std] = /^(1|x|✓|yes|y|true)$/i.test(val) ? 1 : toNum(val);
+        } else if (std==="Alliance"){
+          row.Alliance = /^r/i.test(val) ? "Red" : (/^b/i.test(val) ? "Blue" : "");
+        } else if (std==="Comp"){
+          row.Comp = val.toUpperCase(); // QM/SF/F free text
+        } else if (std==="Match" || std==="Team" || std.startsWith("Fouls") || std.includes("AUTO:") || std.includes("TELE:")){
+          row[std] = toNum(val);
+        } else if (std==="Notes"){
+          row.Notes = val;
+        } else {
+          row[std] = val;
+        }
+        break;
+      }
+    }
+  }
+  // clamp & compute points like normal
+  ["AUTO: L1","AUTO: L2","AUTO: L3","AUTO: L4",
+   "AUTO: Alg→Proc","AUTO: Alg→Net",
+   "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
+   "TELE: Alg→Proc","TELE: Alg→Net",
+   "Fouls: Minor","Fouls: Major"].forEach(k=> row[k]=clamp0(row[k]||0));
+  clampCounts(row, "AUTO: L1");
+  computePointsForRow(row);
+  return row;
 }
 
 /* Boot */
