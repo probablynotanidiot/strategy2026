@@ -66,10 +66,10 @@
   #rawTbl thead tr:first-child th{ top:0; z-index:3; }
   #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
 
-  /* ===== Manual Schedule Editor: mimic Raw table sizing ===== */
+  /* ===== Manual Schedule Editor: match Raw table input sizing ===== */
   #manualSchedTbl{
     table-layout: fixed;
-    min-width: 1180px;
+    min-width: 1600px; /* give it breathing room similar to Raw */
   }
   #manualSchedTbl th, #manualSchedTbl td{ padding: 8px 10px; }
   #manualSchedTbl input[type="number"],
@@ -77,7 +77,9 @@
   #manualSchedTbl select{
     width: 100%; max-width: 100%;
     box-sizing: border-box;
-    font-size: 14px; line-height: 1.3; padding: 8px 10px;
+    font-size: 14px;         /* same as Raw */
+    line-height: 1.3;
+    padding: 8px 10px;       /* same as Raw */
     background:#0d1420; color:var(--text); border:1px solid var(--border); border-radius:8px;
   }
   #manualSchedTbl thead th{ white-space:nowrap; }
@@ -86,7 +88,7 @@
 <body>
 
 <h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Fetch/paste (TBA) OR build via the <b>Manual Schedule Editor</b> → build <b>Raw Data</b> rows via selectors (Comp → Match → Team) → alliance autofills, caps → averages, predictor, planner. Data saves to your browser.</p>
+<p class="muted help">Use TBA fetch or the <b>Manual Schedule Editor</b>. Then build <b>Raw Data</b> rows via selectors (Comp → Match → Team). Data saves to your browser.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -198,7 +200,7 @@
 
   <!-- ===== Manual Schedule Editor (redundancy) ===== -->
   <h3>Manual Schedule Editor</h3>
-  <p class="help">Add rows and fill Match, CompLvl (QM/SF/F), Set (if used), Time (optional), then teams (Red1–3, Blue1–3). Click <b>Apply Manual → Schedule</b> to populate the main Schedule tables.</p>
+  <p class="help">Add rows and fill Match, CompLvl (QM/SF/F), Set (if used), optional Time, then teams (Red1–3, Blue1–3). Click <b>Apply Manual → Schedule</b> to populate the main Schedule tables.</p>
   <div class="footer">
     <button id="manualAddRow">Add Row</button>
     <button id="manualApply">Apply Manual → Schedule</button>
@@ -249,7 +251,7 @@
   </div>
 </section>
 
-<!-- RAW DATA (manual; schedule-driven selectors) -->
+<!-- RAW DATA -->
 <section class="card">
   <h2>Raw Data (Manual; use dropdowns fed by Schedule)</h2>
   <p class="help">Click <b>Add Row</b> to create a scouting row. Pick <i>Comp</i> → <i>Match</i> → <i>Team</i>. Alliance and Event auto-fill. Booleans are checkboxes; counts are capped across Auto+Tele.</p>
@@ -400,7 +402,7 @@
 /* =========================
    Data model & persistence
    ========================= */
-const state = {
+const DEFAULT_STATE = {
   config: {
     ourTeam: "",
     decay: 0.85,
@@ -423,22 +425,41 @@ const state = {
     { item:"MINOR FOUL (opp +2)", auto:0, tele:2, notes:"opponent gets points" },
     { item:"MAJOR FOUL (opp +6)", auto:0, tele:6, notes:"opponent gets points" },
   ],
-  schedule: [],           // [{event,comp,set,match,time,red:[...],blue:[...]}]
-  scheduleExpanded: [],   // [{event,comp,set,match,time,alliance,team}]
-  raw: [],                // manual rows now
+  schedule: [],
+  scheduleExpanded: [],
+  raw: [],
   pit: [],
   tba: { key: "", lastEventKey: "" },
-
-  // Manual editor rows (redundancy)
-  manual: []              // [{event,comp,set,match,time, red1,red2,red3, blue1,blue2,blue3}]
+  manual: []   // NEW: manual schedule editor rows
 };
+const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
 // localStorage
 const LS_KEY = "reefscape2025_scout";
+function mergeDeep(target, source){
+  for (const k of Object.keys(source)){
+    if (source[k] && typeof source[k]==="object" && !Array.isArray(source[k])){
+      if (!target[k] || typeof target[k] !== "object" || Array.isArray(target[k])) target[k]={};
+      mergeDeep(target[k], source[k]);
+    }else{
+      target[k]=source[k];
+    }
+  }
+  return target;
+}
 function saveAll(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 function loadAll(){
   const s = localStorage.getItem(LS_KEY); if (!s) return;
-  try { Object.assign(state, JSON.parse(s)); } catch(e){}
+  try {
+    const parsed = JSON.parse(s);
+    mergeDeep(state, parsed);
+  } catch(e){}
+  // Safety: ensure arrays exist even if old saves lacked them
+  if (!Array.isArray(state.manual)) state.manual = [];
+  if (!Array.isArray(state.schedule)) state.schedule = [];
+  if (!Array.isArray(state.scheduleExpanded)) state.scheduleExpanded = [];
+  if (!Array.isArray(state.raw)) state.raw = [];
+  if (!Array.isArray(state.pit)) state.pit = [];
 }
 
 /* Utils */
@@ -575,11 +596,12 @@ qs("#importTBAFile").onchange = async (e)=>{
 function ensureManualColgroup(){
   const cg = qs("#manualColgroup");
   cg.innerHTML = "";
-  // Widths to feel like Raw Data table inputs (roomy team fields)
+  /* Wider columns so inputs match Raw sizing feel */
   const widths = [
-    140, 120, 80, 100, 140,     // Event, Comp, Set, Match, Time
-     90,  90,  90,  90,  90,  90, // Red1..Red3, Blue1..Blue3
-     80                           // actions
+    140, 120, 90, 120, 160,      // Event, Comp, Set, Match, Time
+    140, 140, 140,               // Red1..3
+    140, 140, 140,               // Blue1..3
+     90                           // actions
   ];
   widths.forEach(w => { const c=document.createElement("col"); c.style.width = w+"px"; cg.appendChild(c); });
 }
@@ -589,10 +611,10 @@ function manualBlankRow(){
 function renderManualEditor(){
   ensureManualColgroup();
   const tb = qs("#manualSchedTbl tbody"); tb.innerHTML = "";
-  state.manual.forEach((r, idx)=>{
+  (state.manual || []).forEach((r, idx)=>{
     const input = (val, on, type="text", attrs={})=>{
       const i = document.createElement("input");
-      i.type = type; i.value = val ?? "";
+      i.type = type; i.value = (val ?? "");
       if (type==="number"){ i.step="1"; i.min="0"; }
       Object.entries(attrs).forEach(([k,v])=> i.setAttribute(k, v));
       i.onchange = e=> on(e.target.value);
@@ -600,8 +622,8 @@ function renderManualEditor(){
     };
     const compSel = document.createElement("select");
     ["QM","SF","F"].forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; compSel.appendChild(o); });
-    compSel.value = r.comp || "QM";
-    compSel.onchange = e=>{ r.comp = e.target.value; saveAll(); };
+    compSel.value = (r.comp || "QM").toUpperCase();
+    compSel.onchange = e=>{ r.comp = e.target.value.toUpperCase(); saveAll(); };
 
     const delBtn = document.createElement("button");
     delBtn.className = "secondary";
@@ -627,11 +649,10 @@ function renderManualEditor(){
   });
 }
 function manualToSchedule(){
-  // Normalize manual rows to schedule array, sorted by comp→match
   const compOrder = { qm:0, sf:1, f:2 };
-  const sched = state.manual.map(r => ({
+  const sched = (state.manual||[]).map(r => ({
     event: r.event || "",
-    comp: r.comp || "QM",
+    comp: (r.comp||"QM").toUpperCase(),
     set: asInt(r.set)||1,
     match: asInt(r.match)||0,
     time: r.time || "",
@@ -647,14 +668,13 @@ function manualToSchedule(){
   return sched.slice(0, state.config.maxMatches);
 }
 function manualExportCSV(){
-  const rows = state.manual.map(r=>({
-    Event:r.event, CompLevel:r.comp, Set:r.set, Match:r.match, Time:r.time,
+  const rows = (state.manual||[]).map(r=>({
+    Event:r.event, CompLevel:(r.comp||"QM"), Set:r.set, Match:r.match, Time:r.time,
     Red1:r.red1, Red2:r.red2, Red3:r.red3, Blue1:r.blue1, Blue2:r.blue2, Blue3:r.blue3
   }));
   download("manual_schedule.csv", toCSV(rows));
 }
 function manualImportCSVText(txt){
-  // Minimal CSV/TSV parser (same order as export)
   const lines = txt.trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length) return;
   const header = lines[0].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
@@ -681,7 +701,7 @@ function manualImportCSVText(txt){
   renderManualEditor(); saveAll();
 }
 
-/* Schedule parse helpers (kept for compatibility with TBA imports) */
+/* Schedule rendering */
 function renderSchedule(){
   const tb = qs("#scheduleTbl tbody"); tb.innerHTML="";
   const matchSelect = qs("#pickMatch"); matchSelect.innerHTML = `<option value="">—</option>`;
@@ -717,7 +737,7 @@ function onScheduleUpdated(){
   saveAll();
 }
 
-/* ======== RAW DATA (manual rows; selectors driven by schedule) ======== */
+/* ======== RAW DATA ======== */
 const RAW_HEADERS = [
   "Event","Comp","Match","Team","Alliance",
   "AUTO Leave",
@@ -784,12 +804,13 @@ function ensureRawColgroup(){
   tbl.insertBefore(cg, tbl.firstChild);
 }
 
-/* Helpers to feed dropdowns */
+/* Helpers for dropdowns */
+function uniqSort(a){return [...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y))); }
 function getCompLevels(){
-  return uniq(state.schedule.map(s => (s.comp||"").toString())).sort((a,b)=>a.localeCompare(b));
+  return uniqSort(state.schedule.map(s => (s.comp||"")));
 }
 function getMatchesForComp(comp){
-  return uniq(state.schedule.filter(s => s.comp===comp).map(s => asInt(s.match))).sort((a,b)=>a-b);
+  return uniqSort(state.schedule.filter(s => s.comp===comp).map(s => asInt(s.match)));
 }
 function getSchedFor(comp, match){
   return state.schedule.find(s => s.comp===comp && asInt(s.match)===asInt(match));
@@ -801,7 +822,7 @@ function getTeamsFor(comp, match){
   return { red, blue, all:[...red, ...blue] };
 }
 
-/* Create a blank manual Raw row */
+/* Raw rows */
 function newManualRawRow(){
   const r = {};
   RAW_HEADERS.forEach(h=>{
@@ -818,7 +839,7 @@ function newManualRawRow(){
   return r;
 }
 
-/* Caps & clamping across Auto+Tele */
+/* Caps, exclusivity, points */
 function clampCounts(row, changedKey){
   const C = state.config.caps;
   const pairClamp = (aKey, bKey, cap)=>{
@@ -836,14 +857,11 @@ function clampCounts(row, changedKey){
   pairClamp("AUTO: Alg→Proc","TELE: Alg→Proc", C.AlgP);
   pairClamp("AUTO: Alg→Net","TELE: Alg→Net", C.AlgN);
 }
-/* Endgame exclusivity */
 function exclusiveEndgame(row, picked){
   if (picked==="END: Park"){ row["END: Shallow"]=0; row["END: Deep"]=0; }
   if (picked==="END: Shallow"){ row["END: Park"]=0; row["END: Deep"]=0; }
   if (picked==="END: Deep"){ row["END: Park"]=0; row["END: Shallow"]=0; }
 }
-
-/* Points rules */
 const RULE = {
   LEAVE: {auto:3, tele:0},
   L1: {auto:3, tele:2},
@@ -1298,7 +1316,8 @@ qs("#importFile").onchange = (e)=>{
   fr.onload = ()=>{
     try{
       const obj = JSON.parse(fr.result);
-      Object.assign(state, obj);
+      mergeDeep(state, obj);
+      if (!Array.isArray(state.manual)) state.manual=[];
       saveAll(); boot();
     }catch(err){ alert("Invalid JSON"); }
   };
@@ -1320,7 +1339,11 @@ qs("#pickMatch").onchange = ()=>{
 ["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=> qs(id).addEventListener("input", computePredictions));
 
 /* ===== Manual Editor buttons ===== */
-qs("#manualAddRow").onclick = ()=>{ state.manual.push(manualBlankRow()); renderManualEditor(); saveAll(); };
+qs("#manualAddRow").onclick = ()=>{ 
+  if (!Array.isArray(state.manual)) state.manual=[];
+  state.manual.push(manualBlankRow()); 
+  renderManualEditor(); saveAll(); 
+};
 qs("#manualApply").onclick = ()=>{
   state.schedule = manualToSchedule();
   onScheduleUpdated();
@@ -1350,7 +1373,7 @@ function boot(){
   renderRules();
   bindSettings();
 
-  renderSchedule();              // show whatever is in state.schedule
+  renderSchedule();
   renderSchedExpanded();
   renderSchedulePicklist();
 
@@ -1359,7 +1382,7 @@ function boot(){
 
   renderRawHeadersAndBody();
 
-  renderManualEditor();          // NEW: build manual editor table
+  renderManualEditor();  // ensure editor always builds, even with no saved manual data
 
   recomputeEverything();
 }
