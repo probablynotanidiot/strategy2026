@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>FRC REEFSCAPE 2025 Scouting (with TBA Fetch)</title>
+<title>FRC REEFSCAPE 2025 Scouting (with TBA + Manual Schedule)</title>
 <style>
   :root{
-    --bg:#0b0f14; --card:#111722; --muted:#98a2b3; --text:#e6edf3; --accent:#2e7dd7; --accent2:#00b894; --warn:#ffd166;
+    --bg:#0b0f14; --card:#111722; --muted:#98a2b3; --text:#e6edf3; --accent:#2e7dd7;
     --border:#1f2a3a;
+    --in-font:14px;         /* unify input sizing across app */
+    --in-pad:8px 10px;
   }
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans";
        background:var(--bg); color:var(--text); margin:0; padding:24px;}
@@ -20,8 +22,8 @@
   th, td{border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top}
   tbody tr:hover{background:#0b1220}
   input[type="number"], input[type="text"], input[type="password"], select, textarea{
-    width:100%; box-sizing:border-box; padding:6px 8px; background:#0d1420; color:var(--text);
-    border:1px solid var(--border); border-radius:8px; font-size:13px;
+    width:100%; max-width:100%; box-sizing:border-box; padding:var(--in-pad);
+    background:#0d1420; color:var(--text); border:1px solid var(--border); border-radius:8px; font-size:var(--in-font); line-height:1.3;
   }
   input[type="checkbox"]{transform:scale(1.2); cursor:pointer}
   textarea{min-height:84px}
@@ -41,54 +43,43 @@
   .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
   .footer{margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
   .help{font-size:12px; line-height:1.35}
-  .nowrap{white-space:nowrap}
 
-  /* ===== Raw table readability upgrades ===== */
+  /* ===== Raw table sizing (authoritative) ===== */
   #rawTbl{
     table-layout: fixed;
     min-width: 1900px;
   }
-  #rawTbl th, #rawTbl td{
-    padding: 8px 10px;
-  }
+  #rawTbl th, #rawTbl td{ padding: var(--in-pad); }
   #rawTbl input[type="number"],
   #rawTbl input[type="text"],
   #rawTbl select,
   #rawTbl .mono{
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    font-size: 14px;
-    line-height: 1.3;
-    padding: 8px 10px;
+    width:100%; max-width:100%; box-sizing:border-box;
+    font-size:var(--in-font); line-height:1.3; padding:var(--in-pad);
   }
   #rawTbl thead th{ white-space:nowrap; }
   #rawTbl thead tr:first-child th{ top:0; z-index:3; }
   #rawTbl thead tr:nth-child(2) th{ top:28px; z-index:2; }
 
-  /* ===== Manual Schedule Editor: match Raw table input sizing ===== */
+  /* ===== Manual Schedule Editor — EXACTLY matches Raw sizing ===== */
   #manualSchedTbl{
     table-layout: fixed;
-    min-width: 1600px; /* give it breathing room similar to Raw */
+    min-width: 1900px;     /* aligns overall feel with Raw */
   }
-  #manualSchedTbl th, #manualSchedTbl td{ padding: 8px 10px; }
+  #manualSchedTbl th, #manualSchedTbl td{ padding: var(--in-pad); }
   #manualSchedTbl input[type="number"],
   #manualSchedTbl input[type="text"],
   #manualSchedTbl select{
-    width: 100%; max-width: 100%;
-    box-sizing: border-box;
-    font-size: 14px;         /* same as Raw */
-    line-height: 1.3;
-    padding: 8px 10px;       /* same as Raw */
-    background:#0d1420; color:var(--text); border:1px solid var(--border); border-radius:8px;
+    width:100%; max-width:100%; box-sizing:border-box;
+    font-size:var(--in-font); line-height:1.3; padding:var(--in-pad);
   }
   #manualSchedTbl thead th{ white-space:nowrap; }
 </style>
 </head>
 <body>
 
-<h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App) + TBA Fetch</h1>
-<p class="muted help">Use TBA fetch or the <b>Manual Schedule Editor</b>. Then build <b>Raw Data</b> rows via selectors (Comp → Match → Team). Data saves to your browser.</p>
+<h1>FRC REEFSCAPE 2025 — Scouting (Tables-only Web App)</h1>
+<p class="muted help">Fetch from TBA, paste a schedule, or use the <b>Manual Schedule Editor</b>. Raw Data is manual via dropdowns. Everything saves to your browser.</p>
 
 <div class="row">
   <!-- SETTINGS -->
@@ -105,7 +96,7 @@
       </tbody>
     </table>
 
-    <h3>Per-Robot Max Caps (enforced per row)</h3>
+    <h3>Per-Robot Max Caps</h3>
     <table class="tight">
       <tbody>
         <tr><th>Max Coral L1</th><td><input id="capL1" type="number" value="6"/></td></tr>
@@ -121,8 +112,8 @@
     <table class="tight">
       <tbody>
         <tr><th>Coral per Level</th><td><input id="rpCoralPerLevel" type="number" value="7"/></td></tr>
-        <tr><th>Levels Required (no Coop)</th><td><input id="rpLevels" type="number" value="4"/></td></tr>
-        <tr><th>Levels Required (with Coop)</th><td><input id="rpLevelsCoop" type="number" value="3"/></td></tr>
+        <tr><th>Levels (no Coop)</th><td><input id="rpLevels" type="number" value="4"/></td></tr>
+        <tr><th>Levels (with Coop)</th><td><input id="rpLevelsCoop" type="number" value="3"/></td></tr>
         <tr><th>Barge RP Points</th><td><input id="rpBargePts" type="number" value="16"/></td></tr>
       </tbody>
     </table>
@@ -171,7 +162,7 @@
 
 <!-- SCHEDULE -->
 <section class="card">
-  <h2>Schedule (Fetch from TBA or Use Manual Schedule Editor)</h2>
+  <h2>Schedule (TBA, Paste, or Manual Editor)</h2>
 
   <!-- TBA Fetch Controls -->
   <div class="grid-3">
@@ -198,12 +189,13 @@
 
   <hr/>
 
-  <!-- ===== Manual Schedule Editor (redundancy) ===== -->
-  <h3>Manual Schedule Editor</h3>
-  <p class="help">Add rows and fill Match, CompLvl (QM/SF/F), Set (if used), optional Time, then teams (Red1–3, Blue1–3). Click <b>Apply Manual → Schedule</b> to populate the main Schedule tables.</p>
+  <!-- Manual Schedule Editor -->
+  <h3>Manual Schedule Editor (Raw Data style columns)</h3>
+  <p class="help">Columns: <span class="mono">Event | CompLvl | Set | Match | Time | Red1 | Red2 | Red3 | Blue1 | Blue2 | Blue3</span></p>
   <div class="footer">
     <button id="manualAddRow">Add Row</button>
-    <button id="manualApply">Apply Manual → Schedule</button>
+    <button id="manualApplyReplace">Apply Manual → Schedule (Replace)</button>
+    <button id="manualApplyAppend" class="ghost">Apply Manual → Schedule (Append)</button>
     <button id="manualExport" class="ghost">Export Manual CSV</button>
     <label class="ghost pill">
       <input id="manualImportFile" type="file" accept=".csv" style="display:none"/>
@@ -226,6 +218,20 @@
   </div>
 
   <hr/>
+
+  <!-- Paste parser (optional) -->
+  <p class="help">Or paste rows with the same headers:</p>
+  <div class="grid-2">
+    <textarea id="schedulePaste" placeholder="Paste schedule rows here…"></textarea>
+    <div>
+      <div class="footer">
+        <button id="parseSchedule">Parse Schedule</button>
+        <button id="clearSchedule" class="secondary">Clear</button>
+        <button id="exportSchedule" class="ghost">Export CSV</button>
+      </div>
+      <p class="muted help">After parsing/fetching/applying Manual, the app builds <b>Schedule</b> + <b>Schedule Expanded</b>.</p>
+    </div>
+  </div>
 
   <div class="scroll" style="margin-top:10px">
     <table id="scheduleTbl">
@@ -430,11 +436,10 @@ const DEFAULT_STATE = {
   raw: [],
   pit: [],
   tba: { key: "", lastEventKey: "" },
-  manual: []   // NEW: manual schedule editor rows
+  manual: []   // Manual Schedule Editor rows
 };
 const state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
-// localStorage
 const LS_KEY = "reefscape2025_scout";
 function mergeDeep(target, source){
   for (const k of Object.keys(source)){
@@ -454,7 +459,6 @@ function loadAll(){
     const parsed = JSON.parse(s);
     mergeDeep(state, parsed);
   } catch(e){}
-  // Safety: ensure arrays exist even if old saves lacked them
   if (!Array.isArray(state.manual)) state.manual = [];
   if (!Array.isArray(state.schedule)) state.schedule = [];
   if (!Array.isArray(state.scheduleExpanded)) state.scheduleExpanded = [];
@@ -546,7 +550,7 @@ function saveWeights(){
 function normalizeFromTBA(json, eventKey){
   return json.map(m => ({
     event: eventKey || (m.event_key||""),
-    comp: m.comp_level || "",
+    comp: (m.comp_level||"").toUpperCase(),
     set: m.set_number || 1,
     match: m.match_number || 0,
     time: m.time || m.predicted_time || m.actual_time || "",
@@ -596,12 +600,12 @@ qs("#importTBAFile").onchange = async (e)=>{
 function ensureManualColgroup(){
   const cg = qs("#manualColgroup");
   cg.innerHTML = "";
-  /* Wider columns so inputs match Raw sizing feel */
+  /* EXACT same widths philosophy as Raw table for feel/alignment */
   const widths = [
-    140, 120, 90, 120, 160,      // Event, Comp, Set, Match, Time
-    140, 140, 140,               // Red1..3
-    140, 140, 140,               // Blue1..3
-     90                           // actions
+    140, 120, 90, 120, 160,   /* Event, Comp, Set, Match, Time */
+    140, 140, 140,            /* Red1..3 */
+    140, 140, 140,            /* Blue1..3 */
+     90                       /* actions */
   ];
   widths.forEach(w => { const c=document.createElement("col"); c.style.width = w+"px"; cg.appendChild(c); });
 }
@@ -626,8 +630,7 @@ function renderManualEditor(){
     compSel.onchange = e=>{ r.comp = e.target.value.toUpperCase(); saveAll(); };
 
     const delBtn = document.createElement("button");
-    delBtn.className = "secondary";
-    delBtn.textContent = "Delete";
+    delBtn.className = "secondary"; delBtn.textContent = "Delete";
     delBtn.onclick = ()=>{ state.manual.splice(idx,1); renderManualEditor(); saveAll(); };
 
     const row = mkRow([
@@ -700,6 +703,58 @@ function manualImportCSVText(txt){
   state.manual = rows;
   renderManualEditor(); saveAll();
 }
+qs("#manualAddRow").onclick = ()=>{ 
+  if (!Array.isArray(state.manual)) state.manual=[];
+  state.manual.push(manualBlankRow()); 
+  renderManualEditor(); saveAll(); 
+};
+qs("#manualApplyReplace").onclick = ()=>{
+  state.schedule = manualToSchedule();
+  onScheduleUpdated();
+};
+qs("#manualApplyAppend").onclick = ()=>{
+  const current = state.schedule.slice();
+  const extra = manualToSchedule();
+  // avoid duplicate (comp+match) when appending
+  const key = m => `${m.comp}|${m.match}`;
+  const taken = new Set(current.map(key));
+  for (const m of extra){ if (!taken.has(key(m))) current.push(m); }
+  // resort
+  const order = { qm:0, sf:1, f:2 };
+  current.sort((a,b)=>{
+    const ra = order[a.comp?.toLowerCase()] ?? 99;
+    const rb = order[b.comp?.toLowerCase()] ?? 99;
+    if (ra!==rb) return ra-rb;
+    return a.match - b.match;
+  });
+  state.schedule = current.slice(0, state.config.maxMatches);
+  onScheduleUpdated();
+};
+qs("#manualExport").onclick = manualExportCSV;
+qs("#manualImportFile").onchange = async (e)=>{
+  const f = e.target.files?.[0]; if(!f) return;
+  const txt = await f.text();
+  manualImportCSVText(txt);
+};
+qs("#manualClear").onclick = ()=>{ if(confirm("Clear all manual rows?")){ state.manual=[]; renderManualEditor(); saveAll(); } };
+
+/* Paste schedule (optional) */
+function parseScheduleText(txt){
+  const rows = txt.trim().split(/\r?\n/).filter(Boolean);
+  const out = [];
+  for (const line of rows){
+    let parts = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(s=>s.replace(/^"(.*)"$/,'$1').trim());
+    if (parts.length < 11){ parts = line.split(/\t|\s{2,}/).map(s=>s.trim()); }
+    if (parts.length < 11) continue;
+    const [event,comp,set,match,time, r1,r2,r3, b1,b2,b3] = parts;
+    out.push({
+      event, comp: (comp||"").toUpperCase(), set:asInt(set), match:asInt(match), time,
+      red:[r1,r2,r3].map(asInt), blue:[b1,b2,b3].map(asInt)
+    });
+  }
+  out.sort((a,b)=> (a.comp||"").localeCompare(b.comp||"") || a.match-b.match);
+  return out.slice(0, state.config.maxMatches);
+}
 
 /* Schedule rendering */
 function renderSchedule(){
@@ -730,9 +785,10 @@ function renderSchedExpanded(){
 function onScheduleUpdated(){
   expandSchedule();
   renderSchedule();
+  renderSchedExpanded();
   renderSchedulePicklist();
   renderPlanner();
-  renderRaw();            // refresh dropdown options for comp/match/team
+  renderRaw();            // refresh dropdown options
   recomputeEverything();
   saveAll();
 }
@@ -773,7 +829,7 @@ function renderRawHeaders(){
   thead.appendChild(cat);
 
   const detail = document.createElement("tr");
-  const cols = [
+  [
     "Event","Comp","Match","Team","Alliance",
     "Leave (Auto)","L1 Auto","L2 Auto","L3 Auto","L4 Auto","Alg→Proc Auto","Alg→Net Auto",
     "L1 Tele","L2 Tele","L3 Tele","L4 Tele","Alg→Proc Tele","Alg→Net Tele",
@@ -781,15 +837,15 @@ function renderRawHeaders(){
     "Minor","Major",
     "Notes",
     "Auto Pts","Tele Pts","End Pts","Total","Opp Pts (Fouls)"
-  ];
-  cols.forEach(h=>{ const th=document.createElement("th"); th.textContent=h; detail.appendChild(th); });
+  ].forEach(h=>{ const th=document.createElement("th"); th.textContent=h; detail.appendChild(th); });
   thead.appendChild(detail);
 }
+
 function ensureRawColgroup(){
   const tbl = document.getElementById('rawTbl');
   if (!tbl) return;
-  let cg = tbl.querySelector('colgroup');
-  if (cg) cg.remove();
+  let cg = tbl.querySelector('colgroup'); if (cg) cg.remove();
+
   const widths = [
     140, 120, 120, 200, 100,
     110,  90,  90,  90,  90, 110, 110,
@@ -804,17 +860,11 @@ function ensureRawColgroup(){
   tbl.insertBefore(cg, tbl.firstChild);
 }
 
-/* Helpers for dropdowns */
+/* Dropdown helpers */
 function uniqSort(a){return [...new Set(a)].sort((x,y)=>String(x).localeCompare(String(y))); }
-function getCompLevels(){
-  return uniqSort(state.schedule.map(s => (s.comp||"")));
-}
-function getMatchesForComp(comp){
-  return uniqSort(state.schedule.filter(s => s.comp===comp).map(s => asInt(s.match)));
-}
-function getSchedFor(comp, match){
-  return state.schedule.find(s => s.comp===comp && asInt(s.match)===asInt(match));
-}
+function getCompLevels(){ return uniqSort(state.schedule.map(s => (s.comp||""))); }
+function getMatchesForComp(comp){ return uniqSort(state.schedule.filter(s => s.comp===comp).map(s => asInt(s.match))); }
+function getSchedFor(comp, match){ return state.schedule.find(s => s.comp===comp && asInt(s.match)===asInt(match)); }
 function getTeamsFor(comp, match){
   const s = getSchedFor(comp, match);
   if (!s) return {red:[], blue:[], all:[]};
@@ -839,7 +889,7 @@ function newManualRawRow(){
   return r;
 }
 
-/* Caps, exclusivity, points */
+/* Caps & exclusivity & points */
 function clampCounts(row, changedKey){
   const C = state.config.caps;
   const pairClamp = (aKey, bKey, cap)=>{
@@ -889,15 +939,9 @@ function computePointsForRow(r){
   r["Opp Pts From Fouls"] = 2*n("Fouls: Minor") + 6*n("Fouls: Major");
 }
 
-/* Inputs for Raw */
+/* Inputs */
 function inputText(value, on){ const i=document.createElement("input"); i.value=value??""; i.onchange=e=>on(e.target.value); return i; }
-function inputNum(value, on){
-  const i=document.createElement("input");
-  i.type="number"; i.step="1";
-  i.value=(value==null||value==="")?"":Number(value);
-  i.onchange=e=>on(e.target.value);
-  return i;
-}
+function inputNum(value, on){ const i=document.createElement("input"); i.type="number"; i.step="1"; i.value=(value==null||value==="")?"":Number(value); i.onchange=e=>on(e.target.value); return i; }
 function inputCheckbox(checked, on){
   const i=document.createElement("input"); i.type="checkbox"; i.checked=!!checked;
   i.onchange=e=> on(e.target.checked?1:0); return i;
@@ -906,9 +950,7 @@ function selectElem(options, val, onChange, placeholder="—", disabled=false){
   const s=document.createElement("select");
   if (placeholder!=null){ const o=document.createElement("option"); o.value=""; o.textContent=placeholder; s.appendChild(o); }
   options.forEach(v=>{ const o=document.createElement("option"); o.value=String(v); o.textContent=String(v).toUpperCase?String(v).toUpperCase():String(v); s.appendChild(o); });
-  s.value = val||"";
-  s.disabled = disabled;
-  s.onchange = e=> onChange(e.target.value);
+  s.value = val||""; s.disabled = disabled; s.onchange = e=> onChange(e.target.value);
   return s;
 }
 
@@ -920,18 +962,16 @@ function renderRawHeadersAndBody(){
 }
 function renderRaw(){
   const tb = qs("#rawTbl tbody"); tb.innerHTML="";
-
   const compLevels = getCompLevels();
 
   state.raw.forEach((row)=>{
     const cells=[];
 
-    // EVENT (read-only)
+    // EVENT derived from schedule comp+match
     const deriveSched = getSchedFor(row.Comp, row.Match);
     const eventText = deriveSched?.event || "";
     row.Event = eventText;
 
-    // COMP select
     const compSel = selectElem(compLevels, row.Comp, (v)=>{
       row.Comp = v || "";
       row.Match = ""; row.Team = ""; row.Alliance="";
@@ -939,7 +979,6 @@ function renderRaw(){
     }, "comp", compLevels.length===0);
     cells.push(compSel);
 
-    // MATCH select
     const matchOpts = row.Comp ? getMatchesForComp(row.Comp) : [];
     const matchSel = selectElem(matchOpts, row.Match, (v)=>{
       row.Match = v || "";
@@ -948,11 +987,10 @@ function renderRaw(){
       row.Event = s?.event || "";
       computePointsForRow(row); saveAll(); renderRaw();
     }, "match", !row.Comp);
-    // Prepend Event
-    cells.unshift(`<span class="mono">${eventText}</span>`);
+
+    cells.unshift(`<span class="mono">${eventText}</span>`); // Event
     cells.push(matchSel);
 
-    // TEAM select (6 teams)
     const teamsFor = (row.Comp && row.Match)? getTeamsFor(row.Comp, row.Match) : {all:[],red:[],blue:[]};
     const teamSel = selectElem(teamsFor.all, row.Team, (v)=>{
       row.Team = v || "";
@@ -964,13 +1002,10 @@ function renderRaw(){
     }, "team", !(row.Comp && row.Match));
     cells.push(teamSel);
 
-    // ALLIANCE (auto)
     cells.push(`<span class="mono">${row.Alliance||""}</span>`);
 
-    // Booleans
     cells.push(inputCheckbox(row["AUTO Leave"], v=>{ row["AUTO Leave"]=v; computePointsForRow(row); saveAll(); renderRaw(); }));
 
-    // Counts with caps
     const cappedNum = (key)=> inputNum(row[key], v=>{
       row[key]=asInt(v); clampCounts(row, key); computePointsForRow(row); saveAll(); renderRaw();
     });
@@ -980,7 +1015,6 @@ function renderRaw(){
      "TELE: L1","TELE: L2","TELE: L3","TELE: L4",
      "TELE: Alg→Proc","TELE: Alg→Net"].forEach(k=> cells.push(cappedNum(k)));
 
-    // Endgame (exclusive)
     const endBox = (k)=> inputCheckbox(row[k], v=>{
       row[k]=v; if(v) exclusiveEndgame(row,k); computePointsForRow(row); saveAll(); renderRaw();
     });
@@ -988,14 +1022,11 @@ function renderRaw(){
     cells.push(endBox("END: Shallow"));
     cells.push(endBox("END: Deep"));
 
-    // Fouls
     cells.push(inputNum(row["Fouls: Minor"], v=>{ row["Fouls: Minor"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
     cells.push(inputNum(row["Fouls: Major"], v=>{ row["Fouls: Major"]=asInt(v); computePointsForRow(row); saveAll(); renderRaw(); }));
 
-    // Notes
     cells.push(inputText(row["Notes"]||"", v=>{ row["Notes"]=v; saveAll(); }));
 
-    // Computed
     ["AUTO Pts","TELE Pts","END Pts","TOTAL","Opp Pts From Fouls"].forEach(h=>{
       cells.push(`<span class="mono">${Number(row[h]||0).toFixed(0)}</span>`);
     });
@@ -1193,7 +1224,6 @@ function renderPlanner(){
   const ours = state.scheduleExpanded.filter(r=>asInt(r.team)===our);
   const ourMatches = uniq(ours.map(r=>asInt(r.match))).sort((a,b)=>a-b);
 
-  // Our Matches
   const tb = qs("#ourMatchesTbl tbody"); tb.innerHTML="";
   for (const m of ourMatches){
     const rows = state.scheduleExpanded.filter(r=>asInt(r.match)===m);
@@ -1205,7 +1235,6 @@ function renderPlanner(){
     tb.appendChild(mkRow([m, ourAlliance, partners, opps, time]));
   }
 
-  // Priority teams
   const teamsWeFace = uniq(
     ourMatches.flatMap(m => state.scheduleExpanded.filter(r=>asInt(r.match)===m && asInt(r.team)!==our).map(r=>asInt(r.team)))
   ).sort((a,b)=>a-b);
@@ -1220,7 +1249,6 @@ function renderPlanner(){
     tb2.appendChild(mkRow([t, firstShared??"", role, chip]));
   }
 
-  // Opponents by our match (coverage gaps)
   const tb3 = qs("#oppChecklistTbl tbody"); tb3.innerHTML="";
   for (const m of ourMatches){
     const rows = state.scheduleExpanded.filter(r=>asInt(r.match)===m);
@@ -1231,7 +1259,6 @@ function renderPlanner(){
     tb3.appendChild(mkRow([m, opps[0]||"", opps[1]||"", opps[2]||"", gapCell]));
   }
 
-  // Other matches to scout
   (function buildOtherMatchesToScout(){
     const tb = qs("#otherMatchesTbl tbody"); if (!tb) return;
     tb.innerHTML = "";
@@ -1326,6 +1353,15 @@ qs("#importFile").onchange = (e)=>{
 qs("#clearStorage").onclick = ()=>{ if(confirm("Clear localStorage & reset?")){ localStorage.removeItem(LS_KEY); location.reload(); } };
 qs("#saveCfg").onclick = saveSettings;
 qs("#saveWeights").onclick = saveWeights;
+qs("#parseSchedule").onclick = ()=>{
+  const txt = qs("#schedulePaste").value;
+  state.schedule = parseScheduleText(txt);
+  onScheduleUpdated();
+};
+qs("#clearSchedule").onclick = ()=>{
+  state.schedule = []; state.scheduleExpanded = [];
+  renderSchedule(); renderSchedExpanded(); renderSchedulePicklist(); renderPlanner(); renderRaw(); saveAll();
+};
 qs("#recompute").onclick = ()=> recomputeEverything();
 qs("#pickMatch").onchange = ()=>{
   const m = asInt(qs("#pickMatch").value);
@@ -1337,24 +1373,6 @@ qs("#pickMatch").onchange = ()=>{
   computePredictions();
 };
 ["#r1","#r2","#r3","#b1","#b2","#b3"].forEach(id=> qs(id).addEventListener("input", computePredictions));
-
-/* ===== Manual Editor buttons ===== */
-qs("#manualAddRow").onclick = ()=>{ 
-  if (!Array.isArray(state.manual)) state.manual=[];
-  state.manual.push(manualBlankRow()); 
-  renderManualEditor(); saveAll(); 
-};
-qs("#manualApply").onclick = ()=>{
-  state.schedule = manualToSchedule();
-  onScheduleUpdated();
-};
-qs("#manualExport").onclick = manualExportCSV;
-qs("#manualClear").onclick = ()=>{ if(confirm("Clear all manual rows?")){ state.manual=[]; renderManualEditor(); saveAll(); } };
-qs("#manualImportFile").onchange = async (e)=>{
-  const f = e.target.files?.[0]; if(!f) return;
-  const txt = await f.text();
-  manualImportCSVText(txt);
-};
 
 /* Recompute */
 function recomputeEverything(){
@@ -1382,7 +1400,7 @@ function boot(){
 
   renderRawHeadersAndBody();
 
-  renderManualEditor();  // ensure editor always builds, even with no saved manual data
+  renderManualEditor();  // ensure editor exists & matches input sizing
 
   recomputeEverything();
 }
